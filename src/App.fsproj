@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="PhosphorVirtualdom.fs" />
+    <Compile Include="PhosphorMessaging.fs" />
+    <Compile Include="PhosphorAlgorithm.fs" />
+    <Compile Include="PhosphorSignaling.fs" />
+    <Compile Include="PhosphorDisposable.fs" />
+    <Compile Include="PhosphorCoreutils.fs" />
+    <Compile Include="PhosphorCommands.fs" />
+    <Compile Include="PhosphorWidgets.fs" />
+    <Compile Include="PhosphorApplication.fs" />
+    <Compile Include="JupyterlabRendermimeInterfaces.fs" />
+    <Compile Include="JupyterlabCoreutils.fs" />
+    <Compile Include="JupyterlabObservables.fs" />
+    <Compile Include="JupyterlabServices.fs" />
+    <Compile Include="JupyterlabApputils.fs" />
+    <Compile Include="JupyterlabRendermime.fs" />
+    <Compile Include="JupyterlabAttachments.fs" />
+    <Compile Include="JupyterlabOutputarea.fs" />
+    <Compile Include="JupyterlabCodeeditor.fs" />
+    <Compile Include="JupyterlabCells.fs" />
+    <Compile Include="JupyterlabDocregistry.fs" />
+    <Compile Include="JupyterlabNotebook.fs" />
+    <Compile Include="JupyterlabApplication.fs" />
+    <Compile Include="index.fs" />
+  </ItemGroup>
+  <Import Project="..\.paket\Paket.Restore.targets" />
+</Project>

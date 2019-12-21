@@ -1,0 +1,11 @@
+The following commands were used:
+
+ ts2fable node_modules/@jupyterlab/application/lib/index.d.ts imports/JupyterlabApplication.fs -e @jupyterlab/application
+ ts2fable node_modules/@jupyterlab/apputils/lib/index.d.ts imports/JupyterlabApputils.fs -e @jupyterlab/apputils
+ ts2fable node_modules/@phosphor/coreutils/lib/index.d.ts imports/PhosphorCoreutils.fs -e @phosphor/coreutils
+ ts2fable node_modules/@phosphor/messaging/lib/index.d.ts imports/PhosphorMessaging.fs -e @phosphor/messaging
+ ts2fable node_modules/@phosphor/widgets/lib/index.d.ts imports/PhosphorWidgets.fs -e @phosphor/widgets
+
+ts2fable did a pretty good job, but the manual correction of these files seemed nontrivial.
+
+So the current strategy is to do adhoc imports and maybe return to creating a full foreign interface later.

@@ -1,0 +1,7 @@
+FSharp.Core
+Fable.Core
+Fable.Node
+Fable.Browser.Dom
+Fable.Browser.Css
+Fable.Fetch
+Fable.React

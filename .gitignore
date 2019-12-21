@@ -1,0 +1,12 @@
+*.bundle.*
+lib/
+node_modules/
+*.egg-info/
+.ipynb_checkpoints
+.ionide/
+.vscode/
+NuGet.Config
+src/bin/
+src/obj/
+tests/bin/
+tests/obj/

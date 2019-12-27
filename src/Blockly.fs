@@ -6,15 +6,25 @@ open Fable.Core.JS
 open Browser
 open Browser.Types
 
-// TODO: try with new imports to see if blocks are drawn; alternatively try using node-blockly
-
 //amo
 type Function = Func<unit>
 
+/// English locale
+// let [<Import("*","blockly/msg/en")>] en : Blockly.SetLocaleMsg = jsNative
+
+/// [<Import("*","blockly")>] appears to call index.js which calls either browser.js or node.js; 
+/// browser.js then calls core-browser, blockly, en, blocks, and javascript generator; 
+/// node.js then calls  core, blockly-node, en, blocks, and all language generators;
+/// This makes the imports a bit confusing because the modules are statically specified here 
+/// but are dynamically discovered at runtime.
 let [<Import("*","blockly")>] blockly: Blockly.IExports = jsNative
+// let [<Import("*","node-blockly")>] blockly: Blockly.IExports = jsNative //webpack complained about this...
 let [<Import("*","blockly")>] goog: Goog.IExports = jsNative
 
 module Blockly =
+
+    /// English locale
+    let [<ImportAll("blockly/msg/en")>] en : SetLocaleMsg = jsNative
 
     //incomplete for now
     module Blocks = 
@@ -33,7 +43,7 @@ module Blockly =
         //     abstract Python: Blockly.Generator
 
     module Python =
-        let [<Import("text","blockly/Blockly/Python")>] text: Text.IExports = jsNative
+        let [<Import("text","blockly/python")>] text: Text.IExports = jsNative
 
         type [<AllowNullLiteral>] IExports =
             abstract ORDER_ATOMIC: obj option
@@ -72,7 +82,7 @@ module Blockly =
             abstract getAdjustedInt: block: Blockly.Block * atId: string * ?opt_delta: float * ?opt_negate: bool -> U2<string, float>
 
         module Text =
-            let [<Import("forceString_","blockly/Blockly/Python/text")>] forceString_: ForceString_.IExports = jsNative
+            let [<Import("forceString_","blockly/python")>] forceString_: ForceString_.IExports = jsNative
 
             type [<AllowNullLiteral>] IExports =
                 /// <summary>Enclose the provided value in 'str(...)' function.
@@ -88,14 +98,14 @@ module Blockly =
 
     //Generated with https://github.com/trodi/blockly-d.ts from blockly/blocks and manually integrated here
     module Constants =
-        let [<Import("Colour","blockly/Blockly/Constants")>] colour: Colour.IExports = jsNative
-        let [<Import("Lists","blockly/Blockly/Constants")>] lists: Lists.IExports = jsNative
-        let [<Import("Logic","blockly/Blockly/Constants")>] logic: Logic.IExports = jsNative
-        let [<Import("Loops","blockly/Blockly/Constants")>] loops: Loops.IExports = jsNative
-        let [<Import("Math","blockly/Blockly/Constants")>] math: Math.IExports = jsNative
-        let [<Import("Text","blockly/Blockly/Constants")>] text: Text.IExports = jsNative
-        let [<Import("Variables","blockly/Blockly/Constants")>] variables: Variables.IExports = jsNative
-        let [<Import("VariablesDynamic","blockly/Blockly/Constants")>] variablesDynamic: VariablesDynamic.IExports = jsNative
+        let [<Import("Colour","blockly")>] colour: Colour.IExports = jsNative
+        let [<Import("Lists","blockly")>] lists: Lists.IExports = jsNative
+        let [<Import("Logic","blockly")>] logic: Logic.IExports = jsNative
+        let [<Import("Loops","blockly")>] loops: Loops.IExports = jsNative
+        let [<Import("Math","blockly")>] math: Math.IExports = jsNative
+        let [<Import("Text","blockly")>] text: Text.IExports = jsNative
+        let [<Import("Variables","blockly")>] variables: Variables.IExports = jsNative
+        let [<Import("VariablesDynamic","blockly")>] variablesDynamic: VariablesDynamic.IExports = jsNative
 
         module Colour =
 
@@ -203,61 +213,62 @@ module Blockly =
                 [<Emit "$0($1...)">] abstract Invoke: unit -> obj option
     //END Generated with https://github.com/trodi/blockly-d.ts from blockly/blocks and manually integrated here
 
-    let [<Import("Python","blockly/Python")>] python: Python.IExports = jsNative //moved from python trodi above
-    let [<Import("Blocks","blockly/Blocks")>] blocks: Blocks.IExports = jsNative //manual
-    let [<Import("ASTNode","blockly/Blockly")>] aSTNode: ASTNode.IExports = jsNative
-    let [<Import("blockAnimations","blockly/Blockly")>] blockAnimations: BlockAnimations.IExports = jsNative
-    let [<Import("blockRendering","blockly/Blockly")>] blockRendering: BlockRendering.IExports = jsNative
-    let [<Import("BlockSvg","blockly/Blockly")>] blockSvg: BlockSvg.IExports = jsNative
-    let [<Import("Bubble","blockly/Blockly")>] bubble: Bubble.IExports = jsNative
-    let [<Import("Component","blockly/Blockly")>] ``component``: Component.IExports = jsNative
-    let [<Import("Connection","blockly/Blockly")>] connection: Connection.IExports = jsNative
-    let [<Import("ConnectionDB","blockly/Blockly")>] connectionDB: ConnectionDB.IExports = jsNative
-    let [<Import("ContextMenu","blockly/Blockly")>] contextMenu: ContextMenu.IExports = jsNative
-    let [<Import("Css","blockly/Blockly")>] css: Css.IExports = jsNative
-    let [<Import("CursorSvg","blockly/Blockly")>] cursorSvg: CursorSvg.IExports = jsNative
-    let [<Import("DropDownDiv","blockly/Blockly")>] dropDownDiv: DropDownDiv.IExports = jsNative
-    let [<Import("Events","blockly/Blockly")>] events: Events.IExports = jsNative
-    let [<Import("Extensions","blockly/Blockly")>] extensions: Extensions.IExports = jsNative
-    let [<Import("Field","blockly/Blockly")>] field: Field.IExports = jsNative
-    let [<Import("FieldAngle","blockly/Blockly")>] fieldAngle: FieldAngle.IExports = jsNative
-    let [<Import("FieldCheckbox","blockly/Blockly")>] fieldCheckbox: FieldCheckbox.IExports = jsNative
-    let [<Import("FieldColour","blockly/Blockly")>] fieldColour: FieldColour.IExports = jsNative
-    let [<Import("FieldDate","blockly/Blockly")>] fieldDate: FieldDate.IExports = jsNative
-    let [<Import("FieldDropdown","blockly/Blockly")>] fieldDropdown: FieldDropdown.IExports = jsNative
-    let [<Import("FieldImage","blockly/Blockly")>] fieldImage: FieldImage.IExports = jsNative
-    let [<Import("FieldLabel","blockly/Blockly")>] fieldLabel: FieldLabel.IExports = jsNative
-    let [<Import("FieldLabelSerializable","blockly/Blockly")>] fieldLabelSerializable: FieldLabelSerializable.IExports = jsNative
-    let [<Import("FieldMultilineInput","blockly/Blockly")>] fieldMultilineInput: FieldMultilineInput.IExports = jsNative
-    let [<Import("FieldNumber","blockly/Blockly")>] fieldNumber: FieldNumber.IExports = jsNative
-    let [<Import("fieldRegistry","blockly/Blockly")>] fieldRegistry: FieldRegistry.IExports = jsNative
-    let [<Import("FieldTextInput","blockly/Blockly")>] fieldTextInput: FieldTextInput.IExports = jsNative
-    let [<Import("FieldVariable","blockly/Blockly")>] fieldVariable: FieldVariable.IExports = jsNative
-    let [<Import("FlyoutButton","blockly/Blockly")>] flyoutButton: FlyoutButton.IExports = jsNative
-    let [<Import("Generator","blockly/Blockly")>] generator: Generator.IExports = jsNative
-    let [<Import("Gesture","blockly/Blockly")>] gesture: Gesture.IExports = jsNative
-    let [<Import("Grid","blockly/Blockly")>] grid: Grid.IExports = jsNative
-    let [<Import("Msg","blockly/Blockly")>] msg: Msg.IExports = jsNative
-    let [<Import("Mutator","blockly/Blockly")>] mutator: Mutator.IExports = jsNative
-    let [<Import("Names","blockly/Blockly")>] names: Names.IExports = jsNative
-    let [<Import("navigation","blockly/Blockly")>] navigation: Navigation.IExports = jsNative
-    let [<Import("Options","blockly/Blockly")>] options: Options.IExports = jsNative
-    let [<Import("Procedures","blockly/Blockly")>] procedures: Procedures.IExports = jsNative
-    let [<Import("Scrollbar","blockly/Blockly")>] scrollbar: Scrollbar.IExports = jsNative
-    let [<Import("Toolbox","blockly/Blockly")>] toolbox: Toolbox.IExports = jsNative
-    let [<Import("Tooltip","blockly/Blockly")>] tooltip: Tooltip.IExports = jsNative
-    let [<Import("Touch","blockly/Blockly")>] touch: Touch.IExports = jsNative
-    let [<Import("TouchGesture","blockly/Blockly")>] touchGesture: TouchGesture.IExports = jsNative
-    let [<Import("tree","blockly/Blockly")>] tree: Tree.IExports = jsNative
-    let [<Import("utils","blockly/Blockly")>] utils: Utils.IExports = jsNative
-    let [<Import("VariableModel","blockly/Blockly")>] variableModel: VariableModel.IExports = jsNative
-    let [<Import("Variables","blockly/Blockly")>] variables: Variables.IExports = jsNative
-    let [<Import("VariablesDynamic","blockly/Blockly")>] variablesDynamic: VariablesDynamic.IExports = jsNative
-    let [<Import("WidgetDiv","blockly/Blockly")>] widgetDiv: WidgetDiv.IExports = jsNative
-    let [<Import("Workspace","blockly/Blockly")>] workspace: Workspace.IExports = jsNative
-    let [<Import("WorkspaceComment","blockly/Blockly")>] workspaceComment: WorkspaceComment.IExports = jsNative
-    let [<Import("WorkspaceCommentSvg","blockly/Blockly")>] workspaceCommentSvg: WorkspaceCommentSvg.IExports = jsNative
-    let [<Import("Xml","blockly/Blockly")>] xml: Xml.IExports = jsNative
+    let [<Import("Python","blockly/python")>] python: Python.IExports = jsNative //moved from python trodi above
+    let [<Import("Blocks","blockly/blocks")>] blocks: Blocks.IExports = jsNative //manual
+    let [<Import("ASTNode","blockly")>] aSTNode: ASTNode.IExports = jsNative
+    let [<Import("blockAnimations","blockly")>] blockAnimations: BlockAnimations.IExports = jsNative
+    let [<Import("blockRendering","blockly")>] blockRendering: BlockRendering.IExports = jsNative
+    let [<Import("BlockSvg","blockly")>] blockSvg: BlockSvg.IExports = jsNative
+    let [<Import("Bubble","blockly")>] bubble: Bubble.IExports = jsNative
+    let [<Import("Component","blockly")>] ``component``: Component.IExports = jsNative
+    let [<Import("Connection","blockly")>] connection: Connection.IExports = jsNative
+    let [<Import("ConnectionDB","blockly")>] connectionDB: ConnectionDB.IExports = jsNative
+    let [<Import("ContextMenu","blockly")>] contextMenu: ContextMenu.IExports = jsNative
+    let [<Import("Css","blockly")>] css: Css.IExports = jsNative
+    let [<Import("CursorSvg","blockly")>] cursorSvg: CursorSvg.IExports = jsNative
+    let [<Import("DropDownDiv","blockly")>] dropDownDiv: DropDownDiv.IExports = jsNative
+    let [<Import("Events","blockly")>] events: Events.IExports = jsNative
+    let [<Import("Extensions","blockly")>] extensions: Extensions.IExports = jsNative
+    let [<Import("Field","blockly")>] field: Field.IExports = jsNative
+    let [<Import("FieldAngle","blockly")>] fieldAngle: FieldAngle.IExports = jsNative
+    let [<Import("FieldCheckbox","blockly")>] fieldCheckbox: FieldCheckbox.IExports = jsNative
+    let [<Import("FieldColour","blockly")>] fieldColour: FieldColour.IExports = jsNative
+    let [<Import("FieldDate","blockly")>] fieldDate: FieldDate.IExports = jsNative
+    let [<Import("FieldDropdown","blockly")>] fieldDropdown: FieldDropdown.IExports = jsNative
+    let [<Import("FieldImage","blockly")>] fieldImage: FieldImage.IExports = jsNative
+    let [<Import("FieldLabel","blockly")>] fieldLabel: FieldLabel.IExports = jsNative
+    let [<Import("FieldLabelSerializable","blockly")>] fieldLabelSerializable: FieldLabelSerializable.IExports = jsNative
+    let [<Import("FieldMultilineInput","blockly")>] fieldMultilineInput: FieldMultilineInput.IExports = jsNative
+    let [<Import("FieldNumber","blockly")>] fieldNumber: FieldNumber.IExports = jsNative
+    let [<Import("fieldRegistry","blockly")>] fieldRegistry: FieldRegistry.IExports = jsNative
+    let [<Import("FieldTextInput","blockly")>] fieldTextInput: FieldTextInput.IExports = jsNative
+    let [<Import("FieldVariable","blockly")>] fieldVariable: FieldVariable.IExports = jsNative
+    let [<Import("FlyoutButton","blockly")>] flyoutButton: FlyoutButton.IExports = jsNative
+    let [<Import("Generator","blockly")>] generator: Generator.IExports = jsNative
+    let [<Import("Gesture","blockly")>] gesture: Gesture.IExports = jsNative
+    let [<Import("Grid","blockly")>] grid: Grid.IExports = jsNative
+    let [<Import("Msg","blockly")>] msg: Msg.IExports = jsNative
+    // let [<Import("Msg","node-blockly")>] msg: Msg.IExports = jsNative
+    let [<Import("Mutator","blockly")>] mutator: Mutator.IExports = jsNative
+    let [<Import("Names","blockly")>] names: Names.IExports = jsNative
+    let [<Import("navigation","blockly")>] navigation: Navigation.IExports = jsNative
+    let [<Import("Options","blockly")>] options: Options.IExports = jsNative
+    let [<Import("Procedures","blockly")>] procedures: Procedures.IExports = jsNative
+    let [<Import("Scrollbar","blockly")>] scrollbar: Scrollbar.IExports = jsNative
+    let [<Import("Toolbox","blockly")>] toolbox: Toolbox.IExports = jsNative
+    let [<Import("Tooltip","blockly")>] tooltip: Tooltip.IExports = jsNative
+    let [<Import("Touch","blockly")>] touch: Touch.IExports = jsNative
+    let [<Import("TouchGesture","blockly")>] touchGesture: TouchGesture.IExports = jsNative
+    let [<Import("tree","blockly")>] tree: Tree.IExports = jsNative
+    let [<Import("utils","blockly")>] utils: Utils.IExports = jsNative
+    let [<Import("VariableModel","blockly")>] variableModel: VariableModel.IExports = jsNative
+    let [<Import("Variables","blockly")>] variables: Variables.IExports = jsNative
+    let [<Import("VariablesDynamic","blockly")>] variablesDynamic: VariablesDynamic.IExports = jsNative
+    let [<Import("WidgetDiv","blockly")>] widgetDiv: WidgetDiv.IExports = jsNative
+    let [<Import("Workspace","blockly")>] workspace: Workspace.IExports = jsNative
+    let [<Import("WorkspaceComment","blockly")>] workspaceComment: WorkspaceComment.IExports = jsNative
+    let [<Import("WorkspaceCommentSvg","blockly")>] workspaceCommentSvg: WorkspaceCommentSvg.IExports = jsNative
+    let [<Import("Xml","blockly")>] xml: Xml.IExports = jsNative
 
     type [<AllowNullLiteral>] IExports =
         abstract Python: Blockly.Generator //moved from python trodi above
@@ -461,7 +472,7 @@ module Blockly =
         /// <param name="container">Containing element, or its ID,
         /// or a CSS selector.</param>
         /// <param name="opt_options">Optional dictionary of options.</param>
-        abstract inject: container: U2<Element, string> * ?opt_options: Object -> Blockly.Workspace
+        abstract inject: container: U2<Element, string> * ?opt_options: BlocklyOptions -> Blockly.Workspace
         abstract Input: InputStatic
         abstract Input__Class: Input__ClassStatic
         abstract InsertionMarkerManager: InsertionMarkerManagerStatic
@@ -544,6 +555,9 @@ module Blockly =
     type [<AllowNullLiteral>] PromptCallback =
         [<Emit "$0($1...)">] abstract Invoke: _0: string -> obj option
 
+    /// Injection options
+    /// https://developers.google.com/blockly/reference/js/Blockly.Options.html
+    /// https://developers.google.com/blockly/guides/get-started/web#configuration
     type [<AllowNullLiteral>] BlocklyOptions =
         abstract toolbox: U2<HTMLElement, string> option with get, set
         abstract readOnly: bool option with get, set
@@ -4928,19 +4942,19 @@ module Blockly =
         [<Emit "new $0($1...)">] abstract Create: workspace: Blockly.Workspace -> Trashcan__Class
 
     module Utils =
-        let [<Import("_string","blockly/Blockly/utils")>] _string: _string.IExports = jsNative
-        let [<Import("aria","blockly/Blockly/utils")>] aria: Aria.IExports = jsNative
-        let [<Import("colour","blockly/Blockly/utils")>] colour: Colour.IExports = jsNative
-        let [<Import("Coordinate","blockly/Blockly/utils")>] coordinate: Coordinate.IExports = jsNative
-        let [<Import("dom","blockly/Blockly/utils")>] dom: Dom.IExports = jsNative
-        let [<Import("IdGenerator","blockly/Blockly/utils")>] idGenerator: IdGenerator.IExports = jsNative
-        let [<Import("math","blockly/Blockly/utils")>] math: Math.IExports = jsNative
-        let [<Import("object","blockly/Blockly/utils")>] ``object``: Object.IExports = jsNative
-        let [<Import("Size","blockly/Blockly/utils")>] size: Size.IExports = jsNative
-        let [<Import("style","blockly/Blockly/utils")>] style: Style.IExports = jsNative
-        let [<Import("svgPaths","blockly/Blockly/utils")>] svgPaths: SvgPaths.IExports = jsNative
-        let [<Import("uiMenu","blockly/Blockly/utils")>] uiMenu: UiMenu.IExports = jsNative
-        let [<Import("xml","blockly/Blockly/utils")>] xml: Xml.IExports = jsNative
+        let [<Import("_string","blockly")>] _string: _string.IExports = jsNative
+        let [<Import("aria","blockly")>] aria: Aria.IExports = jsNative
+        let [<Import("colour","blockly")>] colour: Colour.IExports = jsNative
+        let [<Import("Coordinate","blockly")>] coordinate: Coordinate.IExports = jsNative
+        let [<Import("dom","blockly")>] dom: Dom.IExports = jsNative
+        let [<Import("IdGenerator","blockly")>] idGenerator: IdGenerator.IExports = jsNative
+        let [<Import("math","blockly")>] math: Math.IExports = jsNative
+        let [<Import("object","blockly")>] ``object``: Object.IExports = jsNative
+        let [<Import("Size","blockly")>] size: Size.IExports = jsNative
+        let [<Import("style","blockly")>] style: Style.IExports = jsNative
+        let [<Import("svgPaths","blockly")>] svgPaths: SvgPaths.IExports = jsNative
+        let [<Import("uiMenu","blockly")>] uiMenu: UiMenu.IExports = jsNative
+        let [<Import("xml","blockly")>] xml: Xml.IExports = jsNative
 
         type [<AllowNullLiteral>] IExports =
             /// <summary>Don't do anything for this event, just halt propagation.</summary>
@@ -7193,7 +7207,7 @@ module Blockly =
         [<Emit "new $0($1...)">] abstract Create: unit -> FlyoutCursor__Class
 
     module User =
-        let [<Import("keyMap","blockly/Blockly/user")>] keyMap: KeyMap.IExports = jsNative
+        let [<Import("keyMap","blockly")>] keyMap: KeyMap.IExports = jsNative
 
         module KeyMap =
 
@@ -7453,7 +7467,7 @@ module Blockly =
         [<Emit "new $0($1...)">] abstract Create: content: string * ?opt_value: string -> MenuItem__Class
 
     module Tree =
-        let [<Import("BaseNode","blockly/Blockly/tree")>] baseNode: BaseNode.IExports = jsNative
+        let [<Import("BaseNode","blockly")>] baseNode: BaseNode.IExports = jsNative
 
         type [<AllowNullLiteral>] IExports =
             abstract BaseNode: BaseNodeStatic
@@ -7670,8 +7684,8 @@ module Blockly =
             [<Emit "new $0($1...)">] abstract Create: toolbox: Blockly.Toolbox * content: string * config: Blockly.Tree.BaseNode.Config -> TreeNode__Class
 
     module BlockRendering =
-        let [<Import("Debug","blockly/Blockly/blockRendering")>] debug: Debug.IExports = jsNative
-        let [<Import("Types","blockly/Blockly/blockRendering")>] types: Types = jsNative
+        let [<Import("Debug","blockly")>] debug: Debug.IExports = jsNative
+        let [<Import("Types","blockly")>] types: Types = jsNative
 
         type [<AllowNullLiteral>] IExports =
             abstract useDebugger: bool

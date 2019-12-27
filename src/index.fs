@@ -345,8 +345,20 @@ type Widget() =
 type BlocklyWidget(notebooks:JupyterlabNotebook.Tokens.INotebookTracker) as this =
   class
     inherit Widget()
-    let generator = blockly.Generator.Create()
+    let generator = blockly.Generator.Create("Python")
     do
+        // //set language to English
+        // let en = Blockly.en
+        // blockly.setLocale(en)
+
+        // //for debug
+        // let msg = Blockly.msg.TEXT_APPEND_VARIABLE
+        // console.log( "msg is: " + msg )
+        let pyGen =  blockly.Generator.Create("Python")
+        let genString = pyGen.prefixLines("hi\nbye","\t")
+        console.log( "gen string is: " + genString ) 
+        
+
         //div to hold blockly
         let div = document.createElement("div")
         div.setAttribute("style", "height: 480px; width: 600px;")
@@ -361,19 +373,25 @@ type BlocklyWidget(notebooks:JupyterlabNotebook.Tokens.INotebookTracker) as this
         )
         this.node.appendChild(button) |> ignore
 
+    
     /// Wait until widget shown to prevent injection from taking place before the DOM is ready
     /// Inject blockly into div and save blockly workspace to private member 
     override this.onAfterShow() = 
-      console.log("after show happened")
-      this.workspace <- //blockly.inject( !^"blocklyDiv" )
+      // console.log("after show happened")
+      this.workspace <-
         blockly.inject(
             !^"blocklyDiv",
-            ~~ [
-                "toolbox" => ~~ [ "toolbox" => toolbox2 ]
-                // "media" => "media/" //TODO: see other configuration options; media folder in downloads
-            ] :?> Object
+            // Tricky: creatObj cannot be used here. Must use jsOptions to create POJO
+            jsOptions<Blockly.BlocklyOptions>(fun o ->
+                o.toolbox <- !^toolbox2 |> Some
+            )
+            // THIS FAILS!
+            // ~~ [
+            //     "toolbox" => ~~ [ "toolbox" => toolbox2 ] //TODO: using toolbox2 same as using empty string here
+            //     // "media" => "media/" //TODO: see other configuration options; media folder in downloads
+            // ] :?> Object
         ) 
-      console.log("injection happened")
+      console.log("blockly palette initialized")
     member this.Notebooks = notebooks
     member this.RenderCode() =             
       let code = generator.workspaceToCode( this.workspace )

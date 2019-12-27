@@ -9,16 +9,12 @@ open Browser.Types
 //amo
 type Function = Func<unit>
 
-/// English locale
-// let [<Import("*","blockly/msg/en")>] en : Blockly.SetLocaleMsg = jsNative
-
 /// [<Import("*","blockly")>] appears to call index.js which calls either browser.js or node.js; 
 /// browser.js then calls core-browser, blockly, en, blocks, and javascript generator; 
 /// node.js then calls  core, blockly-node, en, blocks, and all language generators;
 /// This makes the imports a bit confusing because the modules are statically specified here 
 /// but are dynamically discovered at runtime.
 let [<Import("*","blockly")>] blockly: Blockly.IExports = jsNative
-// let [<Import("*","node-blockly")>] blockly: Blockly.IExports = jsNative //webpack complained about this...
 let [<Import("*","blockly")>] goog: Goog.IExports = jsNative
 
 module Blockly =
@@ -31,21 +27,51 @@ module Blockly =
         type [<AllowNullLiteral>] IExports =
             abstract colour : obj
 
-//Generated with https://github.com/trodi/blockly-d.ts from blockly/generators/python.js and python (directory) and manually integrated here
-
-// module Blockly_python =
-//     let [<Import("*","blockly/blockly-python")>] blockly: Blockly.IExports = jsNative
-
-//     module Blockly =
-//         let [<Import("Python","blockly/blockly-python/Blockly")>] python: Python.IExports = jsNative
-
-        // type [<AllowNullLiteral>] IExports =
-        //     abstract Python: Blockly.Generator
-
+    //modeled on module python below; these should probably be pulled into their own interface to reduce duplication
+    module JavaScript =
+        type [<AllowNullLiteral>] IExports =
+            inherit Blockly.Generator
+            abstract ORDER_ATOMIC: obj option
+            abstract ORDER_OVERRIDES: ResizeArray<ResizeArray<float>>
+            /// <summary>Initialise the database of variable names.</summary>
+            /// <param name="workspace">Workspace to generate code from.</param>
+            abstract init: workspace: Blockly.Workspace -> unit
+            abstract PASS: obj option
+            /// <summary>Prepend the generated code with the variable definitions.</summary>
+            /// <param name="code">Generated code.</param>
+            abstract finish: code: string -> string
+            /// <summary>Naked values are top-level blocks with outputs that aren't plugged into
+            /// anything.</summary>
+            /// <param name="line">Line of generated code.</param>
+            abstract scrubNakedValue: line: string -> string
+            /// <summary>Encode a string as a properly escaped Python string, complete with quotes.</summary>
+            /// <param name="string">Text to encode.</param>
+            abstract quote_: string: string -> string
+            /// <summary>Encode a string as a properly escaped multiline Python string, complete
+            /// with quotes.</summary>
+            /// <param name="string">Text to encode.</param>
+            abstract multiline_quote_: string: string -> string
+            /// <summary>Common tasks for generating Python from blocks.
+            /// Handles comments for the specified block and any connected value blocks.
+            /// Calls any statements following this block.</summary>
+            /// <param name="block">The current block.</param>
+            /// <param name="code">The Python code created for this block.</param>
+            /// <param name="opt_thisOnly">True to generate code for only this statement.</param>
+            abstract scrub_: block: Blockly.Block * code: string * ?opt_thisOnly: bool -> string
+            /// <summary>Gets a property and adjusts the value, taking into account indexing, and
+            /// casts to an integer.</summary>
+            /// <param name="block">The block.</param>
+            /// <param name="atId">The property ID of the element to get.</param>
+            /// <param name="opt_delta">Value to add.</param>
+            /// <param name="opt_negate">Whether to negate the value.</param>
+            abstract getAdjustedInt: block: Blockly.Block * atId: string * ?opt_delta: float * ?opt_negate: bool -> U2<string, float>
+ 
+    //Generated with https://github.com/trodi/blockly-d.ts from blockly/generators/python.js and python (directory) and manually integrated here
     module Python =
         let [<Import("text","blockly/python")>] text: Text.IExports = jsNative
 
         type [<AllowNullLiteral>] IExports =
+            inherit Blockly.Generator
             abstract ORDER_ATOMIC: obj option
             abstract ORDER_OVERRIDES: ResizeArray<ResizeArray<float>>
             /// <summary>Initialise the database of variable names.</summary>
@@ -213,8 +239,11 @@ module Blockly =
                 [<Emit "$0($1...)">] abstract Invoke: unit -> obj option
     //END Generated with https://github.com/trodi/blockly-d.ts from blockly/blocks and manually integrated here
 
-    let [<Import("Python","blockly/python")>] python: Python.IExports = jsNative //moved from python trodi above
+    
+    let [<Import("*","blockly/javascript")>] javascript: JavaScript.IExports = jsNative //modeled on python trodi above
+    let [<Import("*","blockly/python")>] python: Python.IExports = jsNative //moved from python trodi above
     let [<Import("Blocks","blockly/blocks")>] blocks: Blocks.IExports = jsNative //manual
+    // original follows
     let [<Import("ASTNode","blockly")>] aSTNode: ASTNode.IExports = jsNative
     let [<Import("blockAnimations","blockly")>] blockAnimations: BlockAnimations.IExports = jsNative
     let [<Import("blockRendering","blockly")>] blockRendering: BlockRendering.IExports = jsNative
@@ -271,7 +300,6 @@ module Blockly =
     let [<Import("Xml","blockly")>] xml: Xml.IExports = jsNative
 
     type [<AllowNullLiteral>] IExports =
-        abstract Python: Blockly.Generator //moved from python trodi above
         /// <summary>Set the Blockly locale.
         /// Note: this method is only available in the npm release of Blockly.</summary>
         /// <param name="msg">An object of Blockly message strings in the desired
@@ -3807,7 +3835,7 @@ module Blockly =
 
     type [<AllowNullLiteral>] GeneratorStatic =
         [<Emit "new $0($1...)">] abstract Create: name: string  -> Generator
-        // [<Emit "new $0($1...)">] abstract Create: unit  -> Generator
+        [<Emit "new $0($1...)">] abstract Create: unit  -> Generator
 
     /// Fake class which should be extended to avoid inheriting static properties 
     type [<AllowNullLiteral>] Generator__Class =

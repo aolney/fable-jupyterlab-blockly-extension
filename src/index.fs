@@ -7,19 +7,19 @@ open Fable.Core.JsInterop
 open Browser.Types
 open Browser.Dom
 open Blockly
-open MutationObserver
 
 //sugar for creating js objects
 let inline private (~~) x = createObj x
 let inline private (=>) x y = x ==> y
 
-//hack here: if we try to make collection of requires, F# complains they are different types unless we specify obj type
+//tricky here: if we try to make collection of requires, F# complains they are different types unless we specify obj type
 let mutable requires : obj array = [| JupyterlabApputils.ICommandPalette; JupyterlabNotebook.Tokens.Types.INotebookTracker |]
 
 //TODO: move toolbox somewhere?
+// NOTE: category names "%{BKY_CATLOGIC}" not resolved by Blockly so replacing with English strings
 let toolbox =
     """<xml xmlns="https://developers.google.com/blockly/xml" id="toolbox" style="display: none">
-    <category name="%{BKY_CATLOGIC}" colour="%{BKY_LOGIC_HUE}">
+    <category name="LOGIC" colour="%{BKY_LOGIC_HUE}">
       <block type="controls_if"></block>
       <block type="logic_compare"></block>
       <block type="logic_operation"></block>
@@ -28,7 +28,7 @@ let toolbox =
       <block type="logic_null"></block>
       <block type="logic_ternary"></block>
     </category>
-    <category name="%{BKY_CATLOOPS}" colour="%{BKY_LOOPS_HUE}">
+    <category name="LOOPS" colour="%{BKY_LOOPS_HUE}">
       <block type="controls_repeat_ext">
         <value name="TIMES">
           <shadow type="math_number">
@@ -57,7 +57,7 @@ let toolbox =
       <block type="controls_forEach"></block>
       <block type="controls_flow_statements"></block>
     </category>
-    <category name="%{BKY_CATMATH}" colour="%{BKY_MATH_HUE}">
+    <category name="MATH" colour="%{BKY_MATH_HUE}">
       <block type="math_number">
         <field name="NUM">123</field>
       </block>
@@ -158,7 +158,7 @@ let toolbox =
         </value>
       </block>
     </category>
-    <category name="%{BKY_CATTEXT}" colour="%{BKY_TEXTS_HUE}">
+    <category name="TEXT" colour="%{BKY_TEXTS_HUE}">
       <block type="text"></block>
       <block type="text_join"></block>
       <block type="text_append">
@@ -235,7 +235,7 @@ let toolbox =
         </value>
       </block>
     </category>
-    <category name="%{BKY_CATLISTS}" colour="%{BKY_LISTS_HUE}">
+    <category name="LISTS" colour="%{BKY_LISTS_HUE}">
       <block type="lists_create_with">
         <mutation items="0"></mutation>
       </block>
@@ -286,7 +286,7 @@ let toolbox =
       </block>
       <block type="lists_sort"></block>
     </category>
-    <category name="%{BKY_CATCOLOUR}" colour="%{BKY_COLOUR_HUE}">
+    <category name="COLOUR" colour="%{BKY_COLOUR_HUE}">
       <block type="colour_picker"></block>
       <block type="colour_random"></block>
       <block type="colour_rgb">
@@ -325,8 +325,8 @@ let toolbox =
       </block>
     </category>
     <sep></sep>
-    <category name="%{BKY_CATVARIABLES}" colour="%{BKY_VARIABLES_HUE}" custom="VARIABLE"></category>
-    <category name="%{BKY_CATFUNCTIONS}" colour="%{BKY_PROCEDURES_HUE}" custom="PROCEDURE"></category>
+    <category name="VARIABLES" colour="%{BKY_VARIABLES_HUE}" custom="VARIABLE"></category>
+    <category name="FUNCTIONS" colour="%{BKY_PROCEDURES_HUE}" custom="PROCEDURE"></category>
   </xml>"""
 
 let toolbox2 = """<xml><block type="controls_if"></block><block type="controls_whileUntil"></block></xml>"""
@@ -338,27 +338,16 @@ type Widget() =
   class
     // only implementing the minimal members needed
     member val node : HTMLElement = null with get, set
-    abstract onAfterShow : unit -> unit
+    /// Guess only fires once after attach to DOM. onAfterShow is called after every display (e.g., switching tabs)
+    abstract onAfterAttach : unit -> unit
   end
 
 /// I don't think its strictly necessary to wrap blockly in a widget
 type BlocklyWidget(notebooks:JupyterlabNotebook.Tokens.INotebookTracker) as this =
   class
     inherit Widget()
-    let generator = blockly.Generator.Create("Python")
+    let generator = Blockly.python //Blockly.javascript
     do
-        // //set language to English
-        // let en = Blockly.en
-        // blockly.setLocale(en)
-
-        // //for debug
-        // let msg = Blockly.msg.TEXT_APPEND_VARIABLE
-        // console.log( "msg is: " + msg )
-        let pyGen =  blockly.Generator.Create("Python")
-        let genString = pyGen.prefixLines("hi\nbye","\t")
-        console.log( "gen string is: " + genString ) 
-        
-
         //div to hold blockly
         let div = document.createElement("div")
         div.setAttribute("style", "height: 480px; width: 600px;")
@@ -372,31 +361,29 @@ type BlocklyWidget(notebooks:JupyterlabNotebook.Tokens.INotebookTracker) as this
           this.RenderCode()
         )
         this.node.appendChild(button) |> ignore
-
     
     /// Wait until widget shown to prevent injection from taking place before the DOM is ready
     /// Inject blockly into div and save blockly workspace to private member 
-    override this.onAfterShow() = 
+    override this.onAfterAttach() = 
       // console.log("after show happened")
       this.workspace <-
         blockly.inject(
             !^"blocklyDiv",
             // Tricky: creatObj cannot be used here. Must use jsOptions to create POJO
             jsOptions<Blockly.BlocklyOptions>(fun o ->
-                o.toolbox <- !^toolbox2 |> Some
+                o.toolbox <- !^toolbox |> Some
             )
             // THIS FAILS!
             // ~~ [
             //     "toolbox" => ~~ [ "toolbox" => toolbox2 ] //TODO: using toolbox2 same as using empty string here
-            //     // "media" => "media/" //TODO: see other configuration options; media folder in downloads
             // ] :?> Object
         ) 
       console.log("blockly palette initialized")
     member this.Notebooks = notebooks
-    member this.RenderCode() =             
+    member this.RenderCode() =        
       let code = generator.workspaceToCode( this.workspace )
       if notebooks.activeCell <> null then
-        notebooks.activeCell.model.value.text <- notebooks.activeCell.model.value.text  + code //could also overwrite
+        notebooks.activeCell.model.value.text <- notebooks.activeCell.model.value.text  + code //append seems better than overwrite...
         console.log("wrote to active cell:" + code)
       else
         console.log("no cell active, flushed:" + code)
@@ -428,7 +415,13 @@ let extension =
                     "label" => "Blockly Jupyterlab Extension"
                     "execute" => fun () -> 
                         if not <| widget.isAttached then
-                            app.shell.add(widget, "main") 
+                          match notebooks.currentWidget with
+                          | Some(c) -> 
+                            let options = jsOptions<JupyterlabDocregistry.Registry.DocumentRegistry.IOpenOptions>(fun o -> 
+                                o.ref <- c.id |> Some
+                                o.mode <- PhosphorWidgets.DockLayout.InsertMode.SplitLeft |> Some )
+                            c.context.addSibling( widget, options) |> ignore
+                          | None -> app.shell.add(widget, "main")
                         app.shell.activateById(widget.id)
                 ] :?> PhosphorCommands.CommandRegistry.ICommandOptions
             ) |> ignore

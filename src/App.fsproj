@@ -26,7 +26,6 @@
     <Compile Include="JupyterlabNotebook.fs" />
     <Compile Include="JupyterlabApplication.fs" />
     <Compile Include="Blockly.fs" />
-    <Compile Include="MutationObserver.fs" />
     <Compile Include="index.fs" />
   </ItemGroup>
   <Import Project="..\.paket\Paket.Restore.targets" />

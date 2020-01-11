@@ -71,6 +71,7 @@ module.exports = {
     },
     mode: isProduction ? 'production' : 'development',
     devtool: isProduction ? 'source-map' : 'eval-source-map',
+    // devtool : 'cheap-eval-source-map',
     optimization: {
         splitChunks: {
             chunks: 'all'

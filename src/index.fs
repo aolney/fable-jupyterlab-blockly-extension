@@ -2,334 +2,28 @@ module App
 
 // open FSharp.Core
 open Fable.Core
-open Fable.Core.JS
+// open Fable.Core.JS
 open Fable.Core.JsInterop
+// open Fable.Promise
 open Browser.Types
 open Browser.Dom
 open Blockly
 
+open JupyterlabServices.__kernel_messages.KernelMessage
+
+// //TODO maybe just open KernelMessage to make these unnecessary
+// type ICompleteRequestMsg = JupyterlabServices.__kernel_messages.KernelMessage.ICompleteRequestMsg
+// type CompleteRequestContent = JupyterlabServices.__kernel_messages.KernelMessage.TypeLiteral_14
+// type ICompleteReplyMsg = JupyterlabServices.__kernel_messages.KernelMessage.ICompleteReplyMsg
+
 //sugar for creating js objects
+/// Probably avoid this for jsOptions; sometimes is not interoperable with Blockly. 
+/// Sugar is possibly a contributing factor
 let inline private (~~) x = createObj x
 let inline private (=>) x y = x ==> y
 
 //tricky here: if we try to make collection of requires, F# complains they are different types unless we specify obj type
 let mutable requires : obj array = [| JupyterlabApputils.ICommandPalette; JupyterlabNotebook.Tokens.Types.INotebookTracker |]
-
-//TODO: move toolbox somewhere?
-// NOTE: category names "%{BKY_CATLOGIC}" not resolved by Blockly so replacing with English strings
-let toolbox =
-    """<xml xmlns="https://developers.google.com/blockly/xml" id="toolbox" style="display: none">
-    <category name="LOGIC" colour="%{BKY_LOGIC_HUE}">
-      <block type="controls_if"></block>
-      <block type="logic_compare"></block>
-      <block type="logic_operation"></block>
-      <block type="logic_negate"></block>
-      <block type="logic_boolean"></block>
-      <block type="logic_null"></block>
-      <block type="logic_ternary"></block>
-    </category>
-    <category name="LOOPS" colour="%{BKY_LOOPS_HUE}">
-      <block type="controls_repeat_ext">
-        <value name="TIMES">
-          <shadow type="math_number">
-            <field name="NUM">10</field>
-          </shadow>
-        </value>
-      </block>
-      <block type="controls_whileUntil"></block>
-      <block type="controls_for">
-        <value name="FROM">
-          <shadow type="math_number">
-            <field name="NUM">1</field>
-          </shadow>
-        </value>
-        <value name="TO">
-          <shadow type="math_number">
-            <field name="NUM">10</field>
-          </shadow>
-        </value>
-        <value name="BY">
-          <shadow type="math_number">
-            <field name="NUM">1</field>
-          </shadow>
-        </value>
-      </block>
-      <block type="controls_forEach"></block>
-      <block type="controls_flow_statements"></block>
-    </category>
-    <category name="MATH" colour="%{BKY_MATH_HUE}">
-      <block type="math_number">
-        <field name="NUM">123</field>
-      </block>
-      <block type="math_arithmetic">
-        <value name="A">
-          <shadow type="math_number">
-            <field name="NUM">1</field>
-          </shadow>
-        </value>
-        <value name="B">
-          <shadow type="math_number">
-            <field name="NUM">1</field>
-          </shadow>
-        </value>
-      </block>
-      <block type="math_single">
-        <value name="NUM">
-          <shadow type="math_number">
-            <field name="NUM">9</field>
-          </shadow>
-        </value>
-      </block>
-      <block type="math_trig">
-        <value name="NUM">
-          <shadow type="math_number">
-            <field name="NUM">45</field>
-          </shadow>
-        </value>
-      </block>
-      <block type="math_constant"></block>
-      <block type="math_number_property">
-        <value name="NUMBER_TO_CHECK">
-          <shadow type="math_number">
-            <field name="NUM">0</field>
-          </shadow>
-        </value>
-      </block>
-      <block type="math_round">
-        <value name="NUM">
-          <shadow type="math_number">
-            <field name="NUM">3.1</field>
-          </shadow>
-        </value>
-      </block>
-      <block type="math_on_list"></block>
-      <block type="math_modulo">
-        <value name="DIVIDEND">
-          <shadow type="math_number">
-            <field name="NUM">64</field>
-          </shadow>
-        </value>
-        <value name="DIVISOR">
-          <shadow type="math_number">
-            <field name="NUM">10</field>
-          </shadow>
-        </value>
-      </block>
-      <block type="math_constrain">
-        <value name="VALUE">
-          <shadow type="math_number">
-            <field name="NUM">50</field>
-          </shadow>
-        </value>
-        <value name="LOW">
-          <shadow type="math_number">
-            <field name="NUM">1</field>
-          </shadow>
-        </value>
-        <value name="HIGH">
-          <shadow type="math_number">
-            <field name="NUM">100</field>
-          </shadow>
-        </value>
-      </block>
-      <block type="math_random_int">
-        <value name="FROM">
-          <shadow type="math_number">
-            <field name="NUM">1</field>
-          </shadow>
-        </value>
-        <value name="TO">
-          <shadow type="math_number">
-            <field name="NUM">100</field>
-          </shadow>
-        </value>
-      </block>
-      <block type="math_random_float"></block>
-      <block type="math_atan2">
-        <value name="X">
-          <shadow type="math_number">
-            <field name="NUM">1</field>
-          </shadow>
-        </value>
-        <value name="Y">
-          <shadow type="math_number">
-            <field name="NUM">1</field>
-          </shadow>
-        </value>
-      </block>
-    </category>
-    <category name="TEXT" colour="%{BKY_TEXTS_HUE}">
-      <block type="text"></block>
-      <block type="text_join"></block>
-      <block type="text_append">
-        <value name="TEXT">
-          <shadow type="text"></shadow>
-        </value>
-      </block>
-      <block type="text_length">
-        <value name="VALUE">
-          <shadow type="text">
-            <field name="TEXT">abc</field>
-          </shadow>
-        </value>
-      </block>
-      <block type="text_isEmpty">
-        <value name="VALUE">
-          <shadow type="text">
-            <field name="TEXT"></field>
-          </shadow>
-        </value>
-      </block>
-      <block type="text_indexOf">
-        <value name="VALUE">
-          <block type="variables_get">
-            <field name="VAR">{textVariable}</field>
-          </block>
-        </value>
-        <value name="FIND">
-          <shadow type="text">
-            <field name="TEXT">abc</field>
-          </shadow>
-        </value>
-      </block>
-      <block type="text_charAt">
-        <value name="VALUE">
-          <block type="variables_get">
-            <field name="VAR">{textVariable}</field>
-          </block>
-        </value>
-      </block>
-      <block type="text_getSubstring">
-        <value name="STRING">
-          <block type="variables_get">
-            <field name="VAR">{textVariable}</field>
-          </block>
-        </value>
-      </block>
-      <block type="text_changeCase">
-        <value name="TEXT">
-          <shadow type="text">
-            <field name="TEXT">abc</field>
-          </shadow>
-        </value>
-      </block>
-      <block type="text_trim">
-        <value name="TEXT">
-          <shadow type="text">
-            <field name="TEXT">abc</field>
-          </shadow>
-        </value>
-      </block>
-      <block type="text_print">
-        <value name="TEXT">
-          <shadow type="text">
-            <field name="TEXT">abc</field>
-          </shadow>
-        </value>
-      </block>
-      <block type="text_prompt_ext">
-        <value name="TEXT">
-          <shadow type="text">
-            <field name="TEXT">abc</field>
-          </shadow>
-        </value>
-      </block>
-    </category>
-    <category name="LISTS" colour="%{BKY_LISTS_HUE}">
-      <block type="lists_create_with">
-        <mutation items="0"></mutation>
-      </block>
-      <block type="lists_create_with"></block>
-      <block type="lists_repeat">
-        <value name="NUM">
-          <shadow type="math_number">
-            <field name="NUM">5</field>
-          </shadow>
-        </value>
-      </block>
-      <block type="lists_length"></block>
-      <block type="lists_isEmpty"></block>
-      <block type="lists_indexOf">
-        <value name="VALUE">
-          <block type="variables_get">
-            <field name="VAR">{listVariable}</field>
-          </block>
-        </value>
-      </block>
-      <block type="lists_getIndex">
-        <value name="VALUE">
-          <block type="variables_get">
-            <field name="VAR">{listVariable}</field>
-          </block>
-        </value>
-      </block>
-      <block type="lists_setIndex">
-        <value name="LIST">
-          <block type="variables_get">
-            <field name="VAR">{listVariable}</field>
-          </block>
-        </value>
-      </block>
-      <block type="lists_getSublist">
-        <value name="LIST">
-          <block type="variables_get">
-            <field name="VAR">{listVariable}</field>
-          </block>
-        </value>
-      </block>
-      <block type="lists_split">
-        <value name="DELIM">
-          <shadow type="text">
-            <field name="TEXT">,</field>
-          </shadow>
-        </value>
-      </block>
-      <block type="lists_sort"></block>
-    </category>
-    <category name="COLOUR" colour="%{BKY_COLOUR_HUE}">
-      <block type="colour_picker"></block>
-      <block type="colour_random"></block>
-      <block type="colour_rgb">
-        <value name="RED">
-          <shadow type="math_number">
-            <field name="NUM">100</field>
-          </shadow>
-        </value>
-        <value name="GREEN">
-          <shadow type="math_number">
-            <field name="NUM">50</field>
-          </shadow>
-        </value>
-        <value name="BLUE">
-          <shadow type="math_number">
-            <field name="NUM">0</field>
-          </shadow>
-        </value>
-      </block>
-      <block type="colour_blend">
-        <value name="COLOUR1">
-          <shadow type="colour_picker">
-            <field name="COLOUR">#ff0000</field>
-          </shadow>
-        </value>
-        <value name="COLOUR2">
-          <shadow type="colour_picker">
-            <field name="COLOUR">#3333ff</field>
-          </shadow>
-        </value>
-        <value name="RATIO">
-          <shadow type="math_number">
-            <field name="NUM">0.5</field>
-          </shadow>
-        </value>
-      </block>
-    </category>
-    <sep></sep>
-    <category name="VARIABLES" colour="%{BKY_VARIABLES_HUE}" custom="VARIABLE"></category>
-    <category name="FUNCTIONS" colour="%{BKY_PROCEDURES_HUE}" custom="PROCEDURE"></category>
-  </xml>"""
-
-let toolbox2 = """<xml><block type="controls_if"></block><block type="controls_whileUntil"></block></xml>"""
 
 //https://stackoverflow.com/questions/47640263/how-to-extend-a-js-class-in-fable
 [<Import("Widget", from="@phosphor/widgets")>]
@@ -342,7 +36,7 @@ type Widget() =
     abstract onAfterAttach : unit -> unit
   end
 
-/// I don't think its strictly necessary to wrap blockly in a widget
+/// Might not be strictly necessary to wrap blockly in a widget
 type BlocklyWidget(notebooks:JupyterlabNotebook.Tokens.INotebookTracker) as this =
   class
     inherit Widget()
@@ -355,12 +49,25 @@ type BlocklyWidget(notebooks:JupyterlabNotebook.Tokens.INotebookTracker) as this
         this.node.appendChild(div) |> ignore
 
         //button to trigger code generation
-        let button = document.createElement("button")
-        button.innerText <- "Generate"
-        button.addEventListener("click", fun _ ->
+        let blocksToCodeButton = document.createElement("button")
+        blocksToCodeButton.innerText <- "Blocks to Code"
+        blocksToCodeButton.addEventListener("click", fun _ ->
           this.RenderCode()
         )
+        this.node.appendChild(blocksToCodeButton) |> ignore
+
+        //UI to test introspection/code completion
+        let displayArea = document.createElement("p")
+        let button = document.createElement("button")
+        button.innerText <- "Test"
+        button.addEventListener("click", fun _ ->
+          this.GetCompletion "test" displayArea 
+          this.GetTooltip "test" displayArea
+          ()
+        )
         this.node.appendChild(button) |> ignore
+        this.node.appendChild(displayArea) |> ignore
+
     
     /// Wait until widget shown to prevent injection from taking place before the DOM is ready
     /// Inject blockly into div and save blockly workspace to private member 
@@ -371,7 +78,7 @@ type BlocklyWidget(notebooks:JupyterlabNotebook.Tokens.INotebookTracker) as this
             !^"blocklyDiv",
             // Tricky: creatObj cannot be used here. Must use jsOptions to create POJO
             jsOptions<Blockly.BlocklyOptions>(fun o ->
-                o.toolbox <- !^toolbox |> Some
+                o.toolbox <- !^Toolbox.toolbox |> Some
             )
             // THIS FAILS!
             // ~~ [
@@ -388,6 +95,37 @@ type BlocklyWidget(notebooks:JupyterlabNotebook.Tokens.INotebookTracker) as this
       else
         console.log("no cell active, flushed:" + code)
     member val workspace : Blockly.Workspace = null with get, set
+    member this.GetCompletion( queryString : string ) (displayArea: HTMLElement) =
+      match this.Notebooks.currentWidget with
+      | Some(widget) -> 
+        match widget.session.kernel with
+        | Some(kernel) -> 
+          promise {
+            let! reply = kernel.requestComplete( !!{| code = queryString; cursor_pos = queryString.Length |} )
+            let content: ICompleteReply = unbox reply.content
+            displayArea.innerText <- content.matches |> String.concat ","
+          }
+          |> Promise.start
+        | None -> ()
+      | None -> ()
+    member this.GetTooltip( queryString : string ) (displayArea: HTMLElement) =
+      match this.Notebooks.currentWidget with
+      | Some(widget) -> 
+        match widget.session.kernel with
+        | Some(kernel) -> 
+          promise {
+            let! reply = kernel.requestInspect( !!{| code = queryString; cursor_pos = queryString.Length; detail_level = 0 |} )
+            //formatting the reply is involved because it has some kind of funky ascii encoding
+            let content: IInspectReply = unbox reply.content
+            let mimeType = widget.content.rendermime.preferredMimeType( unbox content.data);
+            let renderer = widget.content.rendermime.createRenderer( mimeType.Value )
+            let model= JupyterlabRendermime.Mimemodel.Types.MimeModel.Create( !!{| data = content.data |} )
+            let! _ = renderer.renderModel(model) //better way to await a unit promise?
+            displayArea.innerText <- displayArea.innerText + renderer.node.innerText
+          }
+          |> Promise.start
+        | None -> ()
+      | None -> ()
   end
 
 let extension =

@@ -5,3 +5,4 @@ Fable.Browser.Dom
 Fable.Browser.Css
 Fable.Fetch
 Fable.React
+Fable.Promise

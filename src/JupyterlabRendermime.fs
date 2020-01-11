@@ -112,6 +112,10 @@ module Mimemodel =
     type [<AllowNullLiteral>] IExports =
         abstract MimeModel: MimeModelStatic
 
+    [<Import("*","@jupyterlab/rendermime")>]
+    let Types:IExports = jsNative
+
+
     /// The default mime model implementation.
     /// The namespace for MimeModel class statics.
     type [<AllowNullLiteral>] MimeModel =
@@ -569,6 +573,8 @@ module Tokens =
     type [<AllowNullLiteral>] ILatexTypesetter =
         inherit JupyterlabRendermimeInterfaces.IRenderMime.ILatexTypesetter
 
+
+
 module Widgets =
     // type IRenderMime = __@jupyterlab_rendermime_interfaces.IRenderMime
     type Message = PhosphorMessaging.Message //__@phosphor_messaging.Message
@@ -584,6 +590,9 @@ module Widgets =
         abstract RenderedSVG: RenderedSVGStatic
         abstract RenderedText: RenderedTextStatic
         abstract RenderedJavaScript: RenderedJavaScriptStatic
+
+    [<Import("*","@jupyterlab/rendermime")>]
+    let Types:IExports = jsNative
 
     /// A common base class for mime renderers.
     type [<AllowNullLiteral>] RenderedCommon =

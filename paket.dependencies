@@ -9,3 +9,4 @@ nuget Fable.Browser.Dom
 nuget Fable.Browser.Css
 nuget Fable.Fetch
 nuget Fable.React
+nuget Fable.Promise

@@ -1,18 +1,107 @@
 module Toolbox
 
-/// Stub method leading to generation of blocks by querying kernel for completions
-let GetCompletion() =
-    "hi"
+open Fable.Core
+open Fable.Core.JsInterop
+open Fable.Core.DynamicExtensions
+open Blockly
 
-/// Stub method leading to generation of blocks by querying kernel for tooltips/introspection
-let GetTooltip() =
-    "bye"
+// /// Stub method leading to generation of blocks by querying kernel for completions
+// let GetCompletion() =
+//     "hi"
+
+// /// Stub method leading to generation of blocks by querying kernel for tooltips/introspection
+// let GetTooltip() =
+//     "bye"
+
+// It seemed necessary to subclass "Block" in order to add an "init" function and any other state variables we might need
+// Note this is not necessary for blocks that only have JSON definitions and no mutation, which could be loaded with "defineBlocksWithJsonArray"
+// However, this fails, see below
+
+// [<Import("Block", from="blockly")>]
+// [<AbstractClass>]
+// type Block() =
+//   class
+//     // example member implementation (if something wasn't defined in imported class)
+//     //member val node : HTMLElement = null with get, set
+//     //---------------------------------
+//     // all abstract methods we will use/must use
+//     abstract init : unit -> unit
+//   end
+
+// type ImportBlock() as this =
+//   class
+//     inherit Block()
+//     override this.init() =
+//       let thisBlock : Blockly.Block = unbox this //TODO need a better way
+//       thisBlock.appendDummyInput()
+//         .appendField( !^"import"  )
+//         .appendField( !^(blockly.FieldTextInput__Class.Create("some library") :?> Blockly.Field), "libraryName"  )
+//         .appendField( !^"as") 
+//         .appendField( !^(blockly.FieldTextInput__Class.Create("variable name") :?> Blockly.Field), "libraryAlias"  ) |> ignore
+//       thisBlock.setNextStatement true
+//       thisBlock.setColour !^230.0
+//       thisBlock.setTooltip !^"Import a python package to access functions in that package"
+//       thisBlock.setHelpUrl !^"https://docs.python.org/3/reference/import.html"
+//   end
+
+//using dynamic extensions for these assignments
+// blockly?Blocks.["import"] <- ImportBlock() // FAILS: seems to call the Block contrustor and fail b/c no workspace is passed in and "blockDB_" is therefore undefined
+
+//trying to define block without explicitly calling constructor as above...
+// Attempt 1: use jsOptions
+// the below won't compile: The address of a value returned from the expression cannot be used at this point. This is to ensure the address of the local value does not escape its scope.F# Compiler(3228)
+// blockly?Blocks.["import"] <- jsOptions<Blockly.Block>(fun o -> o.init <- fun _ -> ()  ) 
+// NOTE: it doesn't matter if we define an outside function and pass it in to jsOptions; jsOptions does not like function definitions like this.
+// lOOKS LIKE YOU CAN ONLY USE JSOPTIONS FOR SETTING CLASS MEMBERS, NOT FOR CALLING FUNCTIONS AND MAYBE NOT FOR DEFINING THEM
+//blockly?Blocks.["import"] <- jsOptions<Blockly.Block>(fun o -> o.setTooltip !^"Import a python package to access functions in that package" )  //THIS COMPLIES BUT THROWS RUNTIME ERROR "TypeError: o.setTooltip is not a function"
+
+// NOTE: it seems we need a way to get "this", and I don't see how to get that with fable without emit right now
+[<Emit("this")>]
+let thisBlock : Blockly.Block = jsNative
+
+
+blockly?Blocks.["import"] <- createObj [
+  "init" ==> fun () -> 
+    Browser.Dom.console.log("did import block init")
+    thisBlock.appendDummyInput()
+      .appendField( !^"import"  )
+      .appendField( !^(blockly.FieldTextInput.Create("some library") :?> Blockly.Field), "libraryName"  )
+      .appendField( !^"as") 
+      .appendField( !^(blockly.FieldTextInput.Create("variable name") :?> Blockly.Field), "libraryAlias"  ) |> ignore
+    thisBlock.setNextStatement true
+    thisBlock.setColour !^230.0
+    thisBlock.setTooltip !^"Import a python package to access functions in that package"
+    thisBlock.setHelpUrl !^"https://docs.python.org/3/reference/import.html"
+  ]
+
+//scraps from attempting to use jsOptions  
+  // o.init <- fun _ -> 
+      // this.appendDummyInput()
+      //   .appendField( !^"import"  )
+      //   .appendField( !^(blockly.FieldTextInput__Class.Create("some library") :?> Blockly.Field), "libraryName"  )
+      //   .appendField( !^"as") 
+      //   .appendField( !^(blockly.FieldTextInput__Class.Create("variable name") :?> Blockly.Field), "libraryAlias"  ) |> ignore
+      // this.setNextStatement true
+      // this.setColour !^230.0
+      // this.setTooltip !^"Import a python package to access functions in that package"
+      // this.setHelpUrl !^"https://docs.python.org/3/reference/import.html"
+  //)
+
+blockly?Python.["import"] <- fun (block : Blockly.Block) -> 
+  let libraryName = block.getFieldValue("libraryName").Value |> string
+  let libraryAlias = block.getFieldValue("libraryAlias").Value |> string
+  let code =  "import " + libraryName + " from " + libraryAlias
+  code
+
 
 /// A static toolbox copied from one of Google's online demos at https://blockly-demo.appspot.com/static/demos/index.html
 /// Curiously category names like "%{BKY_CATLOGIC}" not resolved by Blockly, even though the colors are, so names 
 /// are replaced with English strings below
 let toolbox =
     """<xml xmlns="https://developers.google.com/blockly/xml" id="toolbox" style="display: none">
+    <category name="IMPORT" color="230">
+      <block type="import"></block>
+    </category>
     <category name="LOGIC" colour="%{BKY_LOGIC_HUE}">
       <block type="controls_if"></block>
       <block type="logic_compare"></block>

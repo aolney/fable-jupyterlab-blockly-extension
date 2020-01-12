@@ -630,6 +630,8 @@ module Blockly =
 
     /// Fake class which should be extended to avoid inheriting static properties 
     type [<AllowNullLiteral>] Block__Class =
+        /// AMO added; seems essential in all block definitions...
+        abstract init: unit -> unit
         abstract id: string with get, set
         abstract outputConnection: Blockly.Connection with get, set
         abstract nextConnection: Blockly.Connection with get, set
@@ -3382,6 +3384,8 @@ module Blockly =
 
     type [<AllowNullLiteral>] FieldTextInputStatic =
         [<Emit "new $0($1...)">] abstract Create: unit -> FieldTextInput
+        //AMO added overload
+        [<Emit "new $0($1...)">] abstract Create: ?opt_value: string * ?opt_validator: Function * ?opt_config: Object -> FieldTextInput
 
     /// Fake class which should be extended to avoid inheriting static properties 
     type [<AllowNullLiteral>] FieldTextInput__Class =
@@ -3458,7 +3462,9 @@ module Blockly =
         /// string, or null to abort the change.</param>
         /// <param name="opt_config">A map of options used to configure the field.
         /// See the [field creation documentation]{</param>
-        [<Emit "new $0($1...)">] abstract Create: ?opt_value: string * ?opt_validator: Function * ?opt_config: Object -> FieldTextInput__Class
+        /// AMO: changed b/c wasn't compiling
+        [<Emit "new $0($1...)">] abstract Create: ?opt_value: string * ?opt_validator: Function * ?opt_config: Object -> FieldTextInput
+        //[<Emit "new $0($1...)">] abstract Create: ?opt_value: string * ?opt_validator: Function * ?opt_config: Object -> FieldTextInput__Class
 
     module FieldTextInput =
 

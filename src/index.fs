@@ -119,7 +119,8 @@ type BlocklyWidget(notebooks:JupyterlabNotebook.Tokens.INotebookTracker) as this
             let content: IInspectReply = unbox reply.content
             let mimeType = widget.content.rendermime.preferredMimeType( unbox content.data);
             let renderer = widget.content.rendermime.createRenderer( mimeType.Value )
-            let model= JupyterlabRendermime.Mimemodel.Types.MimeModel.Create( !!{| data = content.data |} )
+            let payload : PhosphorCoreutils.ReadonlyJSONObject = !!content.data
+            let model= JupyterlabRendermime.Mimemodel.Types.MimeModel.Create( !!{| data = Some(payload)  |} )
             let! _ = renderer.renderModel(model) //better way to await a unit promise?
             displayArea.innerText <- displayArea.innerText + renderer.node.innerText
           }

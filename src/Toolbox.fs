@@ -61,24 +61,6 @@ open Blockly
 // lOOKS LIKE YOU CAN ONLY USE JSOPTIONS FOR SETTING CLASS MEMBERS, NOT FOR CALLING FUNCTIONS AND MAYBE NOT FOR DEFINING THEM
 //blockly?Blocks.["import"] <- jsOptions<Blockly.Block>(fun o -> o.setTooltip !^"Import a python package to access functions in that package" )  //THIS COMPLIES BUT THROWS RUNTIME ERROR "TypeError: o.setTooltip is not a function"
 
-/// Emit as "this" as an interop workaround
-[<Emit("this")>]
-let thisBlock : Blockly.Block = jsNative
-
-/// Create a Blockly/Python import block
-blockly?Blocks.["import"] <- createObj [
-  "init" ==> fun () -> 
-    Browser.Dom.console.log("did import block init")
-    thisBlock.appendDummyInput()
-      .appendField( !^"import"  )
-      .appendField( !^(blockly.FieldTextInput.Create("some library") :?> Blockly.Field), "libraryName"  )
-      .appendField( !^"as")
-      .appendField( !^(blockly.FieldVariable.Create("variable name") :?> Blockly.Field), "libraryAlias"  ) |> ignore
-    thisBlock.setNextStatement true
-    thisBlock.setColour !^230.0
-    thisBlock.setTooltip !^"Import a python package to access functions in that package"
-    thisBlock.setHelpUrl !^"https://docs.python.org/3/reference/import.html"
-  ]
 
 //scraps from attempting to use jsOptions  
   // o.init <- fun _ -> 
@@ -93,6 +75,25 @@ blockly?Blocks.["import"] <- createObj [
       // this.setHelpUrl !^"https://docs.python.org/3/reference/import.html"
   //)
 
+
+/// Emit as "this" as an interop workaround
+[<Emit("this")>]
+let thisBlock : Blockly.Block = jsNative
+
+/// Create a Blockly/Python import block
+blockly?Blocks.["import"] <- createObj [
+  "init" ==> fun () -> 
+    // Browser.Dom.console.log("did import block init")
+    thisBlock.appendDummyInput()
+      .appendField( !^"import"  )
+      .appendField( !^(blockly.FieldTextInput.Create("some library") :?> Blockly.Field), "libraryName"  )
+      .appendField( !^"as")
+      .appendField( !^(blockly.FieldVariable.Create("variable name") :?> Blockly.Field), "libraryAlias"  ) |> ignore
+    thisBlock.setNextStatement true
+    thisBlock.setColour !^230.0
+    thisBlock.setTooltip !^"Import a python package to access functions in that package"
+    thisBlock.setHelpUrl !^"https://docs.python.org/3/reference/import.html"
+  ]
 /// Generate Python import code
 blockly?Python.["import"] <- fun (block : Blockly.Block) -> 
   let libraryName = block.getFieldValue("libraryName").Value |> string
@@ -101,12 +102,56 @@ blockly?Python.["import"] <- fun (block : Blockly.Block) ->
   code
 
 
+/// Create a Blockly/Python bool() block
+blockly?Blocks.["boolConversion"] <- createObj [
+  "init" ==> fun () -> 
+    Browser.Dom.console.log("bool block init")
+    thisBlock.appendValueInput("x")
+      .setCheck(!^None)
+      .appendField(!^"as bool") |> ignore
+    thisBlock.setInputsInline(true)
+    thisBlock.setOutput(true, !^"Boolean")
+    thisBlock.setColour(!^230.0)
+    thisBlock.setTooltip !^"Convert something to True or False."
+    thisBlock.setHelpUrl !^"https://docs.python.org/3/library/stdtypes.html#boolean-values"
+  ]
+/// Generate Python bool conversion code
+blockly?Python.["boolConversion"] <- fun (block : Blockly.Block) -> 
+  // let x = block.getFieldValue("libraryName").Value |> string
+  let x = blockly?Python?valueToCode( block, "x", blockly?Python?ORDER_ATOMIC )
+  let code =  "bool(" + x + ")"
+  [code, blockly?Python?ORDER_FUNCTION_CALL ]
+
+/// Create a Blockly/Python str() block
+blockly?Blocks.["strConversion"] <- createObj [
+  "init" ==> fun () -> 
+    Browser.Dom.console.log("str block init")
+    thisBlock.appendValueInput("x")
+      .setCheck(!^None)
+      .appendField(!^"as string") |> ignore
+    thisBlock.setInputsInline(true)
+    thisBlock.setOutput(true, !^"String")
+    thisBlock.setColour(!^230.0)
+    thisBlock.setTooltip !^"Convert something to String."
+    thisBlock.setHelpUrl !^"https://docs.python.org/3/library/stdtypes.html#str"
+  ]
+/// Generate Python bool conversion code
+blockly?Python.["strConversion"] <- fun (block : Blockly.Block) -> 
+  let x = blockly?Python?valueToCode( block, "x", blockly?Python?ORDER_ATOMIC )
+  let code =  "str(" + x + ")"
+  [code, blockly?Python?ORDER_FUNCTION_CALL ]
+
+//TODO: REFACTOR TO MAKE A FUNCTION FOR BOOL, int, float, string, BLOCKS AND GENERATOR
+// PROBABLY IS GENERALIZABLE TO ARBITRARY FUNCTION CALLS
+// THEN WORK DOWN LIST IN 'JUNK' TO CREATE OTHER BLOCKLY BLOCKS AND CORRECT NAMES FOR
+// THEM IN TOOLBOX
+
 /// A static toolbox copied from one of Google's online demos at https://blockly-demo.appspot.com/static/demos/index.html
 /// Curiously category names like "%{BKY_CATLOGIC}" not resolved by Blockly, even though the colors are, so names 
 /// are replaced with English strings below
 let toolbox =
     """<xml xmlns="https://developers.google.com/blockly/xml" id="toolbox" style="display: none">
-    <category name="IMPORT" color="230">
+    <category name="IMPORT" colour="255">
       <block type="import"></block>
     </category>
     <category name="LOGIC" colour="%{BKY_LOGIC_HUE}">
@@ -324,7 +369,53 @@ let toolbox =
           </shadow>
         </value>
       </block>
+         <!-- From BlockPY: this is simpler than the prompt block above -->
+      <block xmlns="http://www.w3.org/1999/xhtml" type="ast_Call" line_number="null" inline="true">
+        <mutation arguments="1" returns="true" parameters="true" method="false" name="input" message="input" premessage="" colour="170" module="">
+          <arg name="UNKNOWN_ARG:0"></arg>
+        </mutation>
+        <value name="TEXT">
+          <shadow type="text">
+            <field name="TEXT">Prompt message</field>
+          </shadow>
+        </value>
+      </block>
+            <!-- End BlockPY -->
     </category>
+    <!-- From BlockPY -->
+            </category>
+        <category name="Dictionaries" colour="${BlockMirrorTextToBlocks.COLOR.DICTIONARY}">
+            <block type="ast_Dict">
+                <mutation items="3"></mutation>
+                <value name="ADD0"><block type="ast_DictItem" deletable="false" movable="false">
+                  <value name="KEY">
+                    <shadow type="text">
+                      <field name="TEXT">key1</field>
+                    </shadow>
+                  </value>
+                </block></value>
+                <value name="ADD1"><block type="ast_DictItem" deletable="false" movable="false">
+                  <value name="KEY">
+                    <shadow type="text">
+                      <field name="TEXT">key2</field>
+                    </shadow>
+                  </value>
+                </block></value>
+                <value name="ADD2"><block type="ast_DictItem" deletable="false" movable="false">
+                    <!-- <value name="KEY"><block type="ast_Str"><field name="TEXT">3rd key</field></block></value> -->
+                  <value name="KEY">
+                    <shadow type="text">
+                      <field name="TEXT">key3</field>
+                    </shadow>
+                  </value>
+                </block></value>
+            </block>
+            <block type="ast_Subscript">
+                <mutation><arg name="I"></arg></mutation>
+                <value name="INDEX0"><block type="ast_Str"><field name="TEXT">key</field></block></value>
+            </block>
+        </category>
+    <!-- End from BlockPY -->
     <category name="LISTS" colour="%{BKY_LISTS_HUE}">
       <block type="lists_create_with">
         <mutation items="0"></mutation>
@@ -337,6 +428,23 @@ let toolbox =
           </shadow>
         </value>
       </block>
+      <!-- From BlockPY -->
+      <block xmlns="http://www.w3.org/1999/xhtml" type="ast_Call" line_number="null" inline="true">
+        <mutation arguments="1" returns="false" parameters="true" method="true" name=".append" message="append" premessage="to list" colour="30" module="">
+          <arg name="UNKNOWN_ARG:0"></arg>
+        </mutation>
+      </block>
+      <block xmlns="http://www.w3.org/1999/xhtml" type="ast_Call" line_number="null" inline="true">
+        <mutation arguments="1" returns="true" parameters="true" method="false" name="range" message="range" premessage="" colour="15" module="">
+          <arg name="UNKNOWN_ARG:0"></arg>
+        </mutation>
+        <value name="NUM">
+          <shadow type="math_number">
+            <field name="NUM">0</field>
+          </shadow>
+        </value>
+        </block>
+      <!-- End from BlockPY -->
       <block type="lists_length"></block>
       <block type="lists_isEmpty"></block>
       <block type="lists_indexOf">
@@ -414,6 +522,30 @@ let toolbox =
         </value>
       </block>
     </category>
+    <!-- From BlockPy: Conversion -->
+    <category name="Conversion" colour="120">
+      <block xmlns="http://www.w3.org/1999/xhtml" type="ast_Call" line_number="null" inline="true">
+        <mutation arguments="1" returns="true" parameters="true" method="false" name="int" message="int" premessage="" colour="190" module="">
+          <arg name="UNKNOWN_ARG:0"></arg>
+        </mutation>
+      </block>
+      <block xmlns="http://www.w3.org/1999/xhtml" type="ast_Call" line_number="null" inline="true">
+        <mutation arguments="1" returns="true" parameters="true" method="false" name="float" message="float" premessage="" colour="190" module="">
+        <arg name="UNKNOWN_ARG:0"></arg>
+        </mutation>
+      </block>
+      <block xmlns="http://www.w3.org/1999/xhtml" type="ast_Call" line_number="null" inline="true">
+        <mutation arguments="1" returns="true" parameters="true" method="false" name="str" message="str" premessage="" colour="120" module="">
+          <arg name="UNKNOWN_ARG:0"></arg>
+        </mutation>
+      </block>
+      <block xmlns="http://www.w3.org/1999/xhtml" type="ast_Call" line_number="null" inline="true">
+        <mutation arguments="1" returns="true" parameters="true" method="false" name="bool" message="bool" premessage="" colour="345" module="">
+          <arg name="UNKNOWN_ARG:0"></arg>
+        </mutation>
+      </block>
+    </category>
+    <!-- End from BlockPy -->
     <sep></sep>
     <category name="VARIABLES" colour="%{BKY_VARIABLES_HUE}" custom="VARIABLE"></category>
     <category name="FUNCTIONS" colour="%{BKY_PROCEDURES_HUE}" custom="PROCEDURE"></category>

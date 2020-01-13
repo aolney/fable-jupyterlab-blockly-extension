@@ -5,6 +5,12 @@ open Fable.Core.JsInterop
 open Fable.Core.DynamicExtensions
 open Blockly
 
+//-----------------------------------------------------
+// TODO: 
+// 1. ask re block init situation
+// 2. refactor dynamic operators into types
+//-----------------------------------------------------
+
 // /// Stub method leading to generation of blocks by querying kernel for completions
 // let GetCompletion() =
 //     "hi"
@@ -55,19 +61,19 @@ open Blockly
 // lOOKS LIKE YOU CAN ONLY USE JSOPTIONS FOR SETTING CLASS MEMBERS, NOT FOR CALLING FUNCTIONS AND MAYBE NOT FOR DEFINING THEM
 //blockly?Blocks.["import"] <- jsOptions<Blockly.Block>(fun o -> o.setTooltip !^"Import a python package to access functions in that package" )  //THIS COMPLIES BUT THROWS RUNTIME ERROR "TypeError: o.setTooltip is not a function"
 
-// NOTE: it seems we need a way to get "this", and I don't see how to get that with fable without emit right now
+/// Emit as "this" as an interop workaround
 [<Emit("this")>]
 let thisBlock : Blockly.Block = jsNative
 
-
+/// Create a Blockly/Python import block
 blockly?Blocks.["import"] <- createObj [
   "init" ==> fun () -> 
     Browser.Dom.console.log("did import block init")
     thisBlock.appendDummyInput()
       .appendField( !^"import"  )
       .appendField( !^(blockly.FieldTextInput.Create("some library") :?> Blockly.Field), "libraryName"  )
-      .appendField( !^"as") 
-      .appendField( !^(blockly.FieldTextInput.Create("variable name") :?> Blockly.Field), "libraryAlias"  ) |> ignore
+      .appendField( !^"as")
+      .appendField( !^(blockly.FieldVariable.Create("variable name") :?> Blockly.Field), "libraryAlias"  ) |> ignore
     thisBlock.setNextStatement true
     thisBlock.setColour !^230.0
     thisBlock.setTooltip !^"Import a python package to access functions in that package"
@@ -87,9 +93,10 @@ blockly?Blocks.["import"] <- createObj [
       // this.setHelpUrl !^"https://docs.python.org/3/reference/import.html"
   //)
 
+/// Generate Python import code
 blockly?Python.["import"] <- fun (block : Blockly.Block) -> 
   let libraryName = block.getFieldValue("libraryName").Value |> string
-  let libraryAlias = block.getFieldValue("libraryAlias").Value |> string
+  let libraryAlias = blockly?Python?variableDB_?getName( block.getFieldValue("libraryAlias").Value |> string, blockly?Variables?NAME_TYPE);
   let code =  "import " + libraryName + " from " + libraryAlias
   code
 

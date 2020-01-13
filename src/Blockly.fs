@@ -3462,9 +3462,8 @@ module Blockly =
         /// string, or null to abort the change.</param>
         /// <param name="opt_config">A map of options used to configure the field.
         /// See the [field creation documentation]{</param>
-        /// AMO: changed b/c wasn't compiling
-        [<Emit "new $0($1...)">] abstract Create: ?opt_value: string * ?opt_validator: Function * ?opt_config: Object -> FieldTextInput
-        //[<Emit "new $0($1...)">] abstract Create: ?opt_value: string * ?opt_validator: Function * ?opt_config: Object -> FieldTextInput__Class
+        /// AMO: copied this up to FieldTextInputStatic because it wasn't working here. 
+        [<Emit "new $0($1...)">] abstract Create: ?opt_value: string * ?opt_validator: Function * ?opt_config: Object -> FieldTextInput__Class
 
     module FieldTextInput =
 
@@ -3487,6 +3486,8 @@ module Blockly =
 
     type [<AllowNullLiteral>] FieldVariableStatic =
         [<Emit "new $0($1...)">] abstract Create: unit -> FieldVariable
+        [<Emit "new $0($1...)">] abstract Create: varName: string * ?opt_validator: Function * ?opt_variableTypes: ResizeArray<string> * ?opt_defaultType: string * ?opt_config: Object -> FieldVariable__Class
+
 
     /// Fake class which should be extended to avoid inheriting static properties 
     type [<AllowNullLiteral>] FieldVariable__Class =
@@ -3565,6 +3566,7 @@ module Blockly =
         /// field's value is not explicitly set.  Defaults to ''.</param>
         /// <param name="opt_config">A map of options used to configure the field.
         /// See the [field creation documentation]{</param>
+        /// AMO copied up to FieldVariableStatic because it wasn't working here
         [<Emit "new $0($1...)">] abstract Create: varName: string * ?opt_validator: Function * ?opt_variableTypes: ResizeArray<string> * ?opt_defaultType: string * ?opt_config: Object -> FieldVariable__Class
 
     module FieldVariable =

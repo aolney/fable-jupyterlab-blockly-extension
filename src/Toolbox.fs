@@ -101,45 +101,67 @@ blockly?Python.["import"] <- fun (block : Blockly.Block) ->
   let code =  "import " + libraryName + " from " + libraryAlias
   code
 
+/// A template for block creation, including the code generator.
+let makeSingleArgFunctionBlock blockName (label:string) (outputType:string) (tooltip:string) (helpurl:string) (functionStr:string) =
+  blockly?Blocks.[blockName] <- createObj [
+    "init" ==> fun () -> 
+      Browser.Dom.console.log( blockName + " init")
+      thisBlock.appendValueInput("x")
+        .setCheck(!^None)
+        .appendField(!^label) |> ignore
+      thisBlock.setInputsInline(true)
+      thisBlock.setOutput(true, !^outputType)
+      thisBlock.setColour(!^230.0)
+      thisBlock.setTooltip !^tooltip
+      thisBlock.setHelpUrl !^helpurl
+    ]
+  /// Generate Python bool conversion code
+  blockly?Python.[blockName] <- fun (block : Blockly.Block) -> 
+    let x = blockly?Python?valueToCode( block, "x", blockly?Python?ORDER_ATOMIC )
+    let code =  functionStr + "(" + x + ")"
+    [| code; blockly?Python?ORDER_FUNCTION_CALL |]
 
-/// Create a Blockly/Python bool() block
-blockly?Blocks.["boolConversion"] <- createObj [
-  "init" ==> fun () -> 
-    Browser.Dom.console.log("bool block init")
-    thisBlock.appendValueInput("x")
-      .setCheck(!^None)
-      .appendField(!^"as bool") |> ignore
-    thisBlock.setInputsInline(true)
-    thisBlock.setOutput(true, !^"Boolean")
-    thisBlock.setColour(!^230.0)
-    thisBlock.setTooltip !^"Convert something to True or False."
-    thisBlock.setHelpUrl !^"https://docs.python.org/3/library/stdtypes.html#boolean-values"
-  ]
-/// Generate Python bool conversion code
-blockly?Python.["boolConversion"] <- fun (block : Blockly.Block) -> 
-  // let x = block.getFieldValue("libraryName").Value |> string
-  let x = blockly?Python?valueToCode( block, "x", blockly?Python?ORDER_ATOMIC )
-  let code =  "bool(" + x + ")"
-  [code, blockly?Python?ORDER_FUNCTION_CALL ]
+// Conversion blocks, e.g. str()
+makeSingleArgFunctionBlock 
+  "boolConversion"
+  "as bool"
+  "Boolean"
+  "Convert something to Boolean."
+  "https://docs.python.org/3/library/stdtypes.html#boolean-values"
+  "bool"
 
-/// Create a Blockly/Python str() block
-blockly?Blocks.["strConversion"] <- createObj [
-  "init" ==> fun () -> 
-    Browser.Dom.console.log("str block init")
-    thisBlock.appendValueInput("x")
-      .setCheck(!^None)
-      .appendField(!^"as string") |> ignore
-    thisBlock.setInputsInline(true)
-    thisBlock.setOutput(true, !^"String")
-    thisBlock.setColour(!^230.0)
-    thisBlock.setTooltip !^"Convert something to String."
-    thisBlock.setHelpUrl !^"https://docs.python.org/3/library/stdtypes.html#str"
-  ]
-/// Generate Python bool conversion code
-blockly?Python.["strConversion"] <- fun (block : Blockly.Block) -> 
-  let x = blockly?Python?valueToCode( block, "x", blockly?Python?ORDER_ATOMIC )
-  let code =  "str(" + x + ")"
-  [code, blockly?Python?ORDER_FUNCTION_CALL ]
+makeSingleArgFunctionBlock
+  "strConversion"
+  "as str"
+  "String"
+  "Convert something to String."
+  "https://docs.python.org/3/library/stdtypes.html#str"
+  "str"
+
+makeSingleArgFunctionBlock
+  "floatConversion"
+  "as float"
+  "Float"
+  "Convert something to Float."
+  "https://docs.python.org/3/library/functions.html#float"
+  "float"
+
+makeSingleArgFunctionBlock
+  "intConversion"
+  "as int"
+  "Int"
+  "Convert something to Int."
+  "https://docs.python.org/3/library/functions.html#int"
+  "int"
+
+// Get user input, e.g. input()
+makeSingleArgFunctionBlock
+  "getInput"
+  "input"
+  "String"
+  "Present the given prompt to the user and wait for their typed input response."
+  "https://docs.python.org/3/library/functions.html#input"
+  "input"
 
 //TODO: REFACTOR TO MAKE A FUNCTION FOR BOOL, int, float, string, BLOCKS AND GENERATOR
 // PROBABLY IS GENERALIZABLE TO ARBITRARY FUNCTION CALLS
@@ -369,53 +391,14 @@ let toolbox =
           </shadow>
         </value>
       </block>
-         <!-- From BlockPY: this is simpler than the prompt block above -->
-      <block xmlns="http://www.w3.org/1999/xhtml" type="ast_Call" line_number="null" inline="true">
-        <mutation arguments="1" returns="true" parameters="true" method="false" name="input" message="input" premessage="" colour="170" module="">
-          <arg name="UNKNOWN_ARG:0"></arg>
-        </mutation>
-        <value name="TEXT">
+      <block type="getInput">
+        <value name="x">
           <shadow type="text">
-            <field name="TEXT">Prompt message</field>
+            <field name="TEXT">The prompt shown to the user</field>
           </shadow>
         </value>
       </block>
-            <!-- End BlockPY -->
     </category>
-    <!-- From BlockPY -->
-            </category>
-        <category name="Dictionaries" colour="${BlockMirrorTextToBlocks.COLOR.DICTIONARY}">
-            <block type="ast_Dict">
-                <mutation items="3"></mutation>
-                <value name="ADD0"><block type="ast_DictItem" deletable="false" movable="false">
-                  <value name="KEY">
-                    <shadow type="text">
-                      <field name="TEXT">key1</field>
-                    </shadow>
-                  </value>
-                </block></value>
-                <value name="ADD1"><block type="ast_DictItem" deletable="false" movable="false">
-                  <value name="KEY">
-                    <shadow type="text">
-                      <field name="TEXT">key2</field>
-                    </shadow>
-                  </value>
-                </block></value>
-                <value name="ADD2"><block type="ast_DictItem" deletable="false" movable="false">
-                    <!-- <value name="KEY"><block type="ast_Str"><field name="TEXT">3rd key</field></block></value> -->
-                  <value name="KEY">
-                    <shadow type="text">
-                      <field name="TEXT">key3</field>
-                    </shadow>
-                  </value>
-                </block></value>
-            </block>
-            <block type="ast_Subscript">
-                <mutation><arg name="I"></arg></mutation>
-                <value name="INDEX0"><block type="ast_Str"><field name="TEXT">key</field></block></value>
-            </block>
-        </category>
-    <!-- End from BlockPY -->
     <category name="LISTS" colour="%{BKY_LISTS_HUE}">
       <block type="lists_create_with">
         <mutation items="0"></mutation>
@@ -428,23 +411,6 @@ let toolbox =
           </shadow>
         </value>
       </block>
-      <!-- From BlockPY -->
-      <block xmlns="http://www.w3.org/1999/xhtml" type="ast_Call" line_number="null" inline="true">
-        <mutation arguments="1" returns="false" parameters="true" method="true" name=".append" message="append" premessage="to list" colour="30" module="">
-          <arg name="UNKNOWN_ARG:0"></arg>
-        </mutation>
-      </block>
-      <block xmlns="http://www.w3.org/1999/xhtml" type="ast_Call" line_number="null" inline="true">
-        <mutation arguments="1" returns="true" parameters="true" method="false" name="range" message="range" premessage="" colour="15" module="">
-          <arg name="UNKNOWN_ARG:0"></arg>
-        </mutation>
-        <value name="NUM">
-          <shadow type="math_number">
-            <field name="NUM">0</field>
-          </shadow>
-        </value>
-        </block>
-      <!-- End from BlockPY -->
       <block type="lists_length"></block>
       <block type="lists_isEmpty"></block>
       <block type="lists_indexOf">
@@ -520,33 +486,74 @@ let toolbox =
             <field name="NUM">0.5</field>
           </shadow>
         </value>
+      </block>Conversion
+    </category>
+    <category name="CONVERSION" colour="120">
+      <block type="boolConversion">
+      </block>
+      <block type="intConversion">
+      </block>
+      <block type="floatConversion">
+      </block>
+      <block type="strConversion">
       </block>
     </category>
-    <!-- From BlockPy: Conversion -->
-    <category name="Conversion" colour="120">
-      <block xmlns="http://www.w3.org/1999/xhtml" type="ast_Call" line_number="null" inline="true">
-        <mutation arguments="1" returns="true" parameters="true" method="false" name="int" message="int" premessage="" colour="190" module="">
-          <arg name="UNKNOWN_ARG:0"></arg>
-        </mutation>
-      </block>
-      <block xmlns="http://www.w3.org/1999/xhtml" type="ast_Call" line_number="null" inline="true">
-        <mutation arguments="1" returns="true" parameters="true" method="false" name="float" message="float" premessage="" colour="190" module="">
-        <arg name="UNKNOWN_ARG:0"></arg>
-        </mutation>
-      </block>
-      <block xmlns="http://www.w3.org/1999/xhtml" type="ast_Call" line_number="null" inline="true">
-        <mutation arguments="1" returns="true" parameters="true" method="false" name="str" message="str" premessage="" colour="120" module="">
-          <arg name="UNKNOWN_ARG:0"></arg>
-        </mutation>
-      </block>
-      <block xmlns="http://www.w3.org/1999/xhtml" type="ast_Call" line_number="null" inline="true">
-        <mutation arguments="1" returns="true" parameters="true" method="false" name="bool" message="bool" premessage="" colour="345" module="">
-          <arg name="UNKNOWN_ARG:0"></arg>
-        </mutation>
-      </block>
-    </category>
-    <!-- End from BlockPy -->
     <sep></sep>
     <category name="VARIABLES" colour="%{BKY_VARIABLES_HUE}" custom="VARIABLE"></category>
     <category name="FUNCTIONS" colour="%{BKY_PROCEDURES_HUE}" custom="PROCEDURE"></category>
   </xml>"""
+
+
+  // <!-- From BlockPY 
+  //           </category>
+  //       <category name="Dictionaries" colour="${BlockMirrorTextToBlocks.COLOR.DICTIONARY}">
+  //           <block type="ast_Dict">
+  //               <mutation items="3"></mutation>
+  //               <value name="ADD0"><block type="ast_DictItem" deletable="false" movable="false">
+  //                 <value name="KEY">
+  //                   <shadow type="text">
+  //                     <field name="TEXT">key1</field>
+  //                   </shadow>
+  //                 </value>
+  //               </block></value>
+  //               <value name="ADD1"><block type="ast_DictItem" deletable="false" movable="false">
+  //                 <value name="KEY">
+  //                   <shadow type="text">
+  //                     <field name="TEXT">key2</field>
+  //                   </shadow>
+  //                 </value>
+  //               </block></value>
+  //               <value name="ADD2"><block type="ast_DictItem" deletable="false" movable="false">
+  //                   <!-- <value name="KEY"><block type="ast_Str"><field name="TEXT">3rd key</field></block></value> -->
+  //                 <value name="KEY">
+  //                   <shadow type="text">
+  //                     <field name="TEXT">key3</field>
+  //                   </shadow>
+  //                 </value>
+  //               </block></value>
+  //           </block>
+  //           <block type="ast_Subscript">
+  //               <mutation><arg name="I"></arg></mutation>
+  //               <value name="INDEX0"><block type="ast_Str"><field name="TEXT">key</field></block></value>
+  //           </block>
+  //       </category>
+  //    End from BlockPY -->
+
+
+  //          <!-- From BlockPY 
+  //     <block xmlns="http://www.w3.org/1999/xhtml" type="ast_Call" line_number="null" inline="true">
+  //       <mutation arguments="1" returns="false" parameters="true" method="true" name=".append" message="append" premessage="to list" colour="30" module="">
+  //         <arg name="UNKNOWN_ARG:0"></arg>
+  //       </mutation>
+  //     </block>
+  //     <block xmlns="http://www.w3.org/1999/xhtml" type="ast_Call" line_number="null" inline="true">
+  //       <mutation arguments="1" returns="true" parameters="true" method="false" name="range" message="range" premessage="" colour="15" module="">
+  //         <arg name="UNKNOWN_ARG:0"></arg>
+  //       </mutation>
+  //       <value name="NUM">
+  //         <shadow type="math_number">
+  //           <field name="NUM">0</field>
+  //         </shadow>
+  //       </value>
+  //       </block>
+  //     End from BlockPY -->

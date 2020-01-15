@@ -3,6 +3,7 @@ module Toolbox
 open Fable.Core
 open Fable.Core.JsInterop
 open Fable.Core.DynamicExtensions
+open Browser.Types
 open Blockly
 
 //-----------------------------------------------------
@@ -163,10 +164,42 @@ makeSingleArgFunctionBlock
   "https://docs.python.org/3/library/functions.html#input"
   "input"
 
-//TODO: REFACTOR TO MAKE A FUNCTION FOR BOOL, int, float, string, BLOCKS AND GENERATOR
-// PROBABLY IS GENERALIZABLE TO ARBITRARY FUNCTION CALLS
-// THEN WORK DOWN LIST IN 'JUNK' TO CREATE OTHER BLOCKLY BLOCKS AND CORRECT NAMES FOR
-// THEM IN TOOLBOX
+//TODO: 
+// dynamic function calls, dropdown populated by intellisense
+// generalized incr
+// Dictionary
+// list append, list range
+// dynamic tooltips on function calls populated by intellisense
+
+// Override the dynamic 'Variables' toolbox category initialized in blockly_compressed.js
+blockly?Variables?flyoutCategoryBlocks <- fun (workspace : Blockly.Workspace) ->
+  let variableModelList = workspace.getVariablesOfType("")
+  let xmlList = ResizeArray<Element>()
+  if 0 < variableModelList.Count then
+    let lastVarFieldXml = variableModelList.[variableModelList.Count - 1]
+    if blockly?Blocks?variables_set then
+      let xml = Blockly.Utils.xml.createElement("block") 
+      xml.setAttribute("type", "variables_set")
+      xml.setAttribute("gap", if blockly?Blocks?math_change then "8" else "24")
+      xml.appendChild( Blockly.variables.generateVariableFieldDom(lastVarFieldXml)) |> ignore
+      xmlList.Add(xml)
+    if blockly?Blocks?math_change then
+      let xml = Blockly.Utils.xml.createElement("block") 
+      xml.setAttribute("type", "math_change")
+      xml.setAttribute("gap", if blockly?Blocks?math_change then "20" else "8")
+      xml.appendChild( Blockly.variables.generateVariableFieldDom(lastVarFieldXml)) |> ignore
+      let shadowBlockDom = Blockly.xml.textToDom("<value name='DELTA'><shadow type='math_number'><field name='NUM'>1</field></shadow></value>")
+      xml.appendChild(shadowBlockDom) |> ignore
+      xmlList.Add(xml)
+    if blockly?Blocks?variables_get then
+      variableModelList?sort( Blockly.variableModel.compareByName ); //todo may have collision b/c there is both module named VariableModel and let binding with same name at same level
+      for variable in variableModelList do
+        let xml = Blockly.Utils.xml.createElement("block") 
+        xml.setAttribute("type", "variables_get")
+        xml.setAttribute("gap", "8")
+        xml.appendChild( Blockly.variables.generateVariableFieldDom(variable)) |> ignore
+        xmlList.Add(xml)
+  xmlList
 
 /// A static toolbox copied from one of Google's online demos at https://blockly-demo.appspot.com/static/demos/index.html
 /// Curiously category names like "%{BKY_CATLOGIC}" not resolved by Blockly, even though the colors are, so names 

@@ -243,7 +243,8 @@ module Blockly =
     let [<Import("*","blockly/javascript")>] javascript: JavaScript.IExports = jsNative //modeled on python trodi above
     let [<Import("*","blockly/python")>] python: Python.IExports = jsNative //moved from python trodi above
     let [<Import("Blocks","blockly/blocks")>] blocks: Blocks.IExports = jsNative //manual
-    // original follows
+    // original follows; these appear to all be static methods, e.g. Blockly.variableModel.compareByName
+    // creation of objects appear to use blockly, e.g. blockly.VariableModel.Create
     let [<Import("ASTNode","blockly")>] aSTNode: ASTNode.IExports = jsNative
     let [<Import("blockAnimations","blockly")>] blockAnimations: BlockAnimations.IExports = jsNative
     let [<Import("blockRendering","blockly")>] blockRendering: BlockRendering.IExports = jsNative
@@ -4978,6 +4979,7 @@ module Blockly =
         [<Emit "new $0($1...)">] abstract Create: workspace: Blockly.Workspace -> Trashcan__Class
 
     module Utils =
+        //TODO: need dotted imports for all of these? See 'utils.xml' below.
         let [<Import("_string","blockly")>] _string: _string.IExports = jsNative
         let [<Import("aria","blockly")>] aria: Aria.IExports = jsNative
         let [<Import("colour","blockly")>] colour: Colour.IExports = jsNative
@@ -4990,7 +4992,7 @@ module Blockly =
         let [<Import("style","blockly")>] style: Style.IExports = jsNative
         let [<Import("svgPaths","blockly")>] svgPaths: SvgPaths.IExports = jsNative
         let [<Import("uiMenu","blockly")>] uiMenu: UiMenu.IExports = jsNative
-        let [<Import("xml","blockly")>] xml: Xml.IExports = jsNative
+        let [<Import("utils.xml","blockly")>] xml: Xml.IExports = jsNative
 
         type [<AllowNullLiteral>] IExports =
             /// <summary>Don't do anything for this event, just halt propagation.</summary>

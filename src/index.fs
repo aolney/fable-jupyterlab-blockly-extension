@@ -8,19 +8,7 @@ open Fable.Core.JsInterop
 open Browser.Types
 open Browser.Dom
 open Blockly
-
 open JupyterlabServices.__kernel_messages.KernelMessage
-
-// //TODO maybe just open KernelMessage to make these unnecessary
-// type ICompleteRequestMsg = JupyterlabServices.__kernel_messages.KernelMessage.ICompleteRequestMsg
-// type CompleteRequestContent = JupyterlabServices.__kernel_messages.KernelMessage.TypeLiteral_14
-// type ICompleteReplyMsg = JupyterlabServices.__kernel_messages.KernelMessage.ICompleteReplyMsg
-
-//sugar for creating js objects
-/// Probably avoid this for jsOptions; sometimes is not interoperable with Blockly. 
-/// Sugar is possibly a contributing factor
-let inline private (~~) x = createObj x
-let inline private (=>) x y = x ==> y
 
 //tricky here: if we try to make collection of requires, F# complains they are different types unless we specify obj type
 let mutable requires : obj array = [| JupyterlabApputils.ICommandPalette; JupyterlabNotebook.Tokens.Types.INotebookTracker |]
@@ -62,7 +50,7 @@ type BlocklyWidget(notebooks:JupyterlabNotebook.Tokens.INotebookTracker) as this
         button.innerText <- "Test"
         button.addEventListener("click", fun _ ->
           this.GetCompletion "test" displayArea 
-          this.GetTooltip "test" displayArea
+          this.GetTooltip "input" displayArea
           ()
         )
         this.node.appendChild(button) |> ignore
@@ -82,7 +70,7 @@ type BlocklyWidget(notebooks:JupyterlabNotebook.Tokens.INotebookTracker) as this
             )
             // THIS FAILS!
             // ~~ [
-            //     "toolbox" => ~~ [ "toolbox" => toolbox2 ] //TODO: using toolbox2 same as using empty string here
+            //     "toolbox" ==> ~~ [ "toolbox" ==> toolbox2 ] //TODO: using toolbox2 same as using empty string here
             // ] :?> Object
         ) 
       console.log("blockly palette initialized")
@@ -130,19 +118,19 @@ type BlocklyWidget(notebooks:JupyterlabNotebook.Tokens.INotebookTracker) as this
   end
 
 let extension =
-    ~~ [
-        "id" => "jupyterlab_blockly_extension"
-        "autoStart" => true
-        "requires" => requires // 
+    createObj [
+        "id" ==> "jupyterlab_blockly_extension"
+        "autoStart" ==> true
+        "requires" ==> requires // 
         //------------------------------------------------------------------------------------------------------------
         //NOTE: this **must** be wrapped in a Func, otherwise the arguments are tupled and Jupyter doesn't expect that
         //------------------------------------------------------------------------------------------------------------
-        "activate" =>  System.Func<JupyterlabApplication.JupyterFrontEnd<JupyterlabApplication.LabShell>,JupyterlabApputils.ICommandPalette,JupyterlabNotebook.Tokens.INotebookTracker,unit>( fun app palette notebooks ->
+        "activate" ==>  System.Func<JupyterlabApplication.JupyterFrontEnd<JupyterlabApplication.LabShell>,JupyterlabApputils.ICommandPalette,JupyterlabNotebook.Tokens.INotebookTracker,unit>( fun app palette notebooks ->
             console.log("JupyterLab extension jupyterlab_blockly_extension is activated!");
       
             //Create a blockly widget and place inside main area widget
             let blocklyWidget = BlocklyWidget(notebooks)
-            let widget = JupyterlabApputils.Types.MainAreaWidget.Create( ~~[ "content" => blocklyWidget ]) 
+            let widget = JupyterlabApputils.Types.MainAreaWidget.Create( createObj [ "content" ==> blocklyWidget ]) 
             widget.id <- "blockly-jupyterlab";
             widget.title.label <- "Blockly Palette";
             widget.title.closable <- true
@@ -150,9 +138,9 @@ let extension =
             // Add application command
             let command = "blockly:open"
             app.commands.addCommand( command, 
-                ~~ [
-                    "label" => "Blockly Jupyterlab Extension"
-                    "execute" => fun () -> 
+                createObj [
+                    "label" ==> "Blockly Jupyterlab Extension"
+                    "execute" ==> fun () -> 
                         if not <| widget.isAttached then
                           match notebooks.currentWidget with
                           | Some(c) -> 
@@ -166,9 +154,9 @@ let extension =
             ) |> ignore
             //Add command to palette
             palette?addItem(
-                ~~[
-                    "command" => command
-                    "category" => "Blockly"
+                createObj[
+                    "command" ==> command
+                    "category" ==> "Blockly"
                 ]
             )
         )

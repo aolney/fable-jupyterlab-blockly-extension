@@ -166,23 +166,91 @@ makeSingleArgFunctionBlock
 
 //TODO: 
 // dynamic function calls, dropdown populated by intellisense
+// CREATE OPTION FOR BOTH POSITION ONLY (PASS IN LIST OF ARGS) AND KEYWORD ARGUMENTS (PASS IN DICTIONARY)
 // generalized incr
 // Dictionary
 // list append, list range
 // dynamic tooltips on function calls populated by intellisense
 
+
+//TODO: We need to get the var name in order to call the kernel to generate the list. Every time the variable changes, we should update the list
+// for now, ignore performance. Current status is that it's hard to get the variable name, but it is present in the JS inspector in chrome
+let tooltipOptions( block : Blockly.Block ) =
+  let varName = 
+    match block.getFieldValue("VAR") with
+    | Some(value) -> value |> string
+    | None -> (block.getField("VAR") :?> Blockly.FieldVariable).defaultVariableName //TODO try "getText"; also see other ways of getting name
+  let varField = block.getField("VAR")
+  // let varName = varField.name |> unbox<string>
+  let test = "" //blockly?Python?variableDB_?getName( block.getFieldValue("VAR").Value |> string, blockly?Variables?NAME_TYPE);
+  [| [| varName; test  |] |]
+
+blockly?Blocks.["varGetProperty"] <- createObj [
+    "init" ==> fun () -> 
+      Browser.Dom.console.log( "varGetProperty" + " init")
+      //query the kernel to get a list of properties for this variable (use intellisense)
+      thisBlock.appendDummyInput()
+        .appendField(!^"from") 
+        .appendField( !^(blockly.FieldVariable.Create("variable name") :?> Blockly.Field), "VAR"  )
+        .appendField( !^"get") 
+        // .appendField( !^(blockly.FieldDropdown.Create( [||] ) ) ) |> ignore
+        .appendField( !^(blockly.FieldDropdown.Create(  tooltipOptions(thisBlock)  ) :> Blockly.Field), "PROPERTY"  ) |> ignore //[| [| "field"; "FIELD" |] |]
+      thisBlock.setColour !^230.0
+      thisBlock.setTooltip !^"TODO"
+      thisBlock.setHelpUrl !^""
+      //catch events to set the property dropdown
+      // FAILS:  The address of a value returned from the expression cannot be used at this point. This is to ensure the address of the local value does not escape its scope.
+      // thisBlock.setOnChange <- fun (e:Blockly.Events.Change) ->
+      //   if thisBlock.workspace <> null && not <| thisBlock.isInFlyout && e.``type`` = Blockly.events?BLOCK_CHANGE then //TODO fix event types
+      //     ()
+    //
+    // NOTE: this is functional; holding as a backup in case dynamic menus are not performant
+    // "onchange" ==> fun (e:Blockly.Events.Change) ->
+    //   if thisBlock.workspace <> null && not <| thisBlock.isInFlyout && e.``type`` = Blockly.events?BLOCK_CHANGE then //TODO fix event types
+    //     ()
+    ]
+
+
+
+// [| [| "field"; "FIELD" |] |] 
+
+/// Generate Python bool conversion code
+// blockly?Python.["varGetProperty"] <- fun (block : Blockly.Block) -> 
+//   let x = blockly?Python?valueToCode( block, "x", blockly?Python?ORDER_ATOMIC )
+//   let code =  functionStr + "(" + x + ")"
+//   [| code; blockly?Python?ORDER_FUNCTION_CALL |]
+
+
+// Blockly.Blocks['block_type'] = {
+//   init: function() {
+//     this.appendDummyInput()
+//         .appendField("from")
+//         .appendField(new Blockly.FieldVariable("item"), "VAR")
+//         .appendField("get")
+//         .appendField(new Blockly.FieldDropdown([["option","OPTIONNAME"], ["option","OPTIONNAME"], ["option","OPTIONNAME"]]), "FIELD");
+//     this.setOutput(true, null);
+//     this.setColour(230);
+//  this.setTooltip("");
+//  this.setHelpUrl("");
+//   }
+// };
+
 // Override the dynamic 'Variables' toolbox category initialized in blockly_compressed.js
+// The basic idea here is that as we add vars, we extend the list of vars in the dropdowns in this category
 blockly?Variables?flyoutCategoryBlocks <- fun (workspace : Blockly.Workspace) ->
   let variableModelList = workspace.getVariablesOfType("")
   let xmlList = ResizeArray<Element>()
+  //Only create variable blocks if a variable has been defined
   if 0 < variableModelList.Count then
     let lastVarFieldXml = variableModelList.[variableModelList.Count - 1]
     if blockly?Blocks?variables_set then
+      //variable set block
       let xml = Blockly.Utils.xml.createElement("block") 
       xml.setAttribute("type", "variables_set")
       xml.setAttribute("gap", if blockly?Blocks?math_change then "8" else "24")
       xml.appendChild( Blockly.variables.generateVariableFieldDom(lastVarFieldXml)) |> ignore
       xmlList.Add(xml)
+    //variable incr block : TODO REPLACE WITH GENERALIZED INCR
     if blockly?Blocks?math_change then
       let xml = Blockly.Utils.xml.createElement("block") 
       xml.setAttribute("type", "math_change")
@@ -191,15 +259,28 @@ blockly?Variables?flyoutCategoryBlocks <- fun (workspace : Blockly.Workspace) ->
       let shadowBlockDom = Blockly.xml.textToDom("<value name='DELTA'><shadow type='math_number'><field name='NUM'>1</field></shadow></value>")
       xml.appendChild(shadowBlockDom) |> ignore
       xmlList.Add(xml)
+    //variable property block - TODO
+    if blockly?Blocks?varGetProperty then
+      let xml = Blockly.Utils.xml.createElement("block") 
+      xml.setAttribute("type", "varGetProperty")
+      xml.setAttribute("gap", if blockly?Blocks?varGetProperty then "20" else "8")
+      xml.appendChild( Blockly.variables.generateVariableFieldDom(lastVarFieldXml)) |> ignore
+      xmlList.Add(xml)
+    //variable get block, one per variable: TODO - WHY DO WE NEED ONE PER VAR? LESS CLUTTER TO HAVE ONE WITH DROPDOWN
     if blockly?Blocks?variables_get then
-      variableModelList?sort( Blockly.variableModel.compareByName ); //todo may have collision b/c there is both module named VariableModel and let binding with same name at same level
-      for variable in variableModelList do
+      //for some reason the original "directly translated" code is passing the workspace into sort instead of the variables
+      // variableModelList?sort( Blockly.variableModel.compareByName ) 
+      let sortedVars = variableModelList |> Seq.sortBy( fun v -> v.name)
+      for variable in sortedVars do
         let xml = Blockly.Utils.xml.createElement("block") 
         xml.setAttribute("type", "variables_get")
         xml.setAttribute("gap", "8")
         xml.appendChild( Blockly.variables.generateVariableFieldDom(variable)) |> ignore
         xmlList.Add(xml)
   xmlList
+
+//Python generators for new dynamic "Variables"; NOTE THESE CONTINUE TO EXIST AFTER VARIABLE IS DELETED
+
 
 /// A static toolbox copied from one of Google's online demos at https://blockly-demo.appspot.com/static/demos/index.html
 /// Curiously category names like "%{BKY_CATLOGIC}" not resolved by Blockly, even though the colors are, so names 

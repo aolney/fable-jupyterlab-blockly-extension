@@ -801,7 +801,9 @@ module Blockly =
         /// initializer function.</summary>
         /// <param name="onchangeFn">The callback to call
         /// when the block's workspace changes.</param>
-        abstract setOnChange: onchangeFn: Block__ClassSetOnChangeOnchangeFn -> unit
+        abstract setOnChange: onchangeFn: Events.Change -> unit
+        //AMO orginal below; type DNE anywhere else
+        // abstract setOnChange: onchangeFn: Block__ClassSetOnChangeOnchangeFn -> unit
         /// <summary>Returns the named field from a block.</summary>
         /// <param name="name">The name of the field.</param>
         abstract getField: name: string -> Blockly.Field
@@ -3028,6 +3030,18 @@ module Blockly =
 
     type [<AllowNullLiteral>] FieldDropdownStatic =
         [<Emit "new $0($1...)">] abstract Create: unit -> FieldDropdown
+        //AMO moved from below, modifying return type
+        /// <summary>Class for an editable dropdown field.</summary>
+        /// <param name="menuGenerator">A non-empty array of
+        /// options for a dropdown list, or a function which generates these options.</param>
+        /// <param name="opt_validator">A function that is called to validate
+        /// changes to the field's value. Takes in a language-neutral dropdown
+        /// option & returns a validated language-neutral dropdown option, or null to
+        /// abort the change.</param>
+        /// <param name="opt_config">A map of options used to configure the field.
+        /// See the [field creation documentation]{</param>
+        [<Emit "new $0($1...)">] abstract Create: menuGenerator: U2<ResizeArray<ResizeArray<obj option>>, Function> * ?opt_validator: Function * ?opt_config: Object -> FieldDropdown // FieldDropdown__Class
+
 
     /// Fake class which should be extended to avoid inheriting static properties 
     type [<AllowNullLiteral>] FieldDropdown__Class =
@@ -3386,6 +3400,14 @@ module Blockly =
     type [<AllowNullLiteral>] FieldTextInputStatic =
         [<Emit "new $0($1...)">] abstract Create: unit -> FieldTextInput
         //AMO added overload
+        /// <summary>Class for an editable text field.</summary>
+        /// <param name="opt_value">The initial value of the field. Should cast to a
+        /// string. Defaults to an empty string if null or undefined.</param>
+        /// <param name="opt_validator">A function that is called to validate
+        /// changes to the field's value. Takes in a string & returns a validated
+        /// string, or null to abort the change.</param>
+        /// <param name="opt_config">A map of options used to configure the field.
+        /// See the [field creation documentation]{</param>
         [<Emit "new $0($1...)">] abstract Create: ?opt_value: string * ?opt_validator: Function * ?opt_config: Object -> FieldTextInput
 
     /// Fake class which should be extended to avoid inheriting static properties 
@@ -3487,7 +3509,20 @@ module Blockly =
 
     type [<AllowNullLiteral>] FieldVariableStatic =
         [<Emit "new $0($1...)">] abstract Create: unit -> FieldVariable
-        [<Emit "new $0($1...)">] abstract Create: varName: string * ?opt_validator: Function * ?opt_variableTypes: ResizeArray<string> * ?opt_defaultType: string * ?opt_config: Object -> FieldVariable__Class
+        // AMO copied from below, modifying return type
+        /// <summary>Class for a variable's dropdown field.</summary>
+        /// <param name="varName">The default name for the variable.  If null,
+        /// a unique variable name will be generated.</param>
+        /// <param name="opt_validator">A function that is called to validate
+        /// changes to the field's value. Takes in a variable ID  & returns a
+        /// validated variable ID, or null to abort the change.</param>
+        /// <param name="opt_variableTypes">A list of the types of variables
+        /// to include in the dropdown.</param>
+        /// <param name="opt_defaultType">The type of variable to create if this
+        /// field's value is not explicitly set.  Defaults to ''.</param>
+        /// <param name="opt_config">A map of options used to configure the field.
+        /// See the [field creation documentation]{</param>
+        [<Emit "new $0($1...)">] abstract Create: varName: string * ?opt_validator: Function * ?opt_variableTypes: ResizeArray<string> * ?opt_defaultType: string * ?opt_config: Object -> FieldVariable
 
 
     /// Fake class which should be extended to avoid inheriting static properties 

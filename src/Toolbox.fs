@@ -5,55 +5,10 @@ open Fable.Core.JsInterop
 open Fable.Core.DynamicExtensions
 open Browser.Types
 open Blockly
+open JupyterlabServices.__kernel_messages.KernelMessage
 
-//-----------------------------------------------------
-// TODO: 
-// 1. ask re block init situation
-// 2. refactor dynamic operators into types
-//-----------------------------------------------------
 
-// /// Stub method leading to generation of blocks by querying kernel for completions
-// let GetCompletion() =
-//     "hi"
-
-// /// Stub method leading to generation of blocks by querying kernel for tooltips/introspection
-// let GetTooltip() =
-//     "bye"
-
-// It seemed necessary to subclass "Block" in order to add an "init" function and any other state variables we might need
-// Note this is not necessary for blocks that only have JSON definitions and no mutation, which could be loaded with "defineBlocksWithJsonArray"
-// However, this fails, see below
-
-// [<Import("Block", from="blockly")>]
-// [<AbstractClass>]
-// type Block() =
-//   class
-//     // example member implementation (if something wasn't defined in imported class)
-//     //member val node : HTMLElement = null with get, set
-//     //---------------------------------
-//     // all abstract methods we will use/must use
-//     abstract init : unit -> unit
-//   end
-
-// type ImportBlock() as this =
-//   class
-//     inherit Block()
-//     override this.init() =
-//       let thisBlock : Blockly.Block = unbox this //TODO need a better way
-//       thisBlock.appendDummyInput()
-//         .appendField( !^"import"  )
-//         .appendField( !^(blockly.FieldTextInput__Class.Create("some library") :?> Blockly.Field), "libraryName"  )
-//         .appendField( !^"as") 
-//         .appendField( !^(blockly.FieldTextInput__Class.Create("variable name") :?> Blockly.Field), "libraryAlias"  ) |> ignore
-//       thisBlock.setNextStatement true
-//       thisBlock.setColour !^230.0
-//       thisBlock.setTooltip !^"Import a python package to access functions in that package"
-//       thisBlock.setHelpUrl !^"https://docs.python.org/3/reference/import.html"
-//   end
-
-//using dynamic extensions for these assignments
-// blockly?Blocks.["import"] <- ImportBlock() // FAILS: seems to call the Block contrustor and fail b/c no workspace is passed in and "blockDB_" is therefore undefined
-
+//TODO: ask fable about using jsOptions to define functions
 //trying to define block without explicitly calling constructor as above...
 // Attempt 1: use jsOptions
 // the below won't compile: The address of a value returned from the expression cannot be used at this point. This is to ensure the address of the local value does not escape its scope.F# Compiler(3228)
@@ -172,18 +127,81 @@ makeSingleArgFunctionBlock
 // list append, list range
 // dynamic tooltips on function calls populated by intellisense
 
+/// An entry for a single name (var/function/whatever)
+type IntellisenseEntry =
+  {
+    Name : string //from tooltip
+    Info : string //from introspection
+    isInstance : bool //from introspection, do we descend from object
+  }
+// An entry for a complex name, e.g. object, that has associated properties and/or methods
+type IntellisenseVariable =
+  {
+    VariableEntry : IntellisenseEntry
+    ChildEntries : IntellisenseEntry[]
+  }
+
+/// Dependency injected from JupyterLab. Needed to send intellisense requests to the kernel
+let mutable (notebooks : JupyterlabNotebook.Tokens.INotebookTracker ) = null
+let GetKernel() =
+  if notebooks <> null then
+    match notebooks.currentWidget with
+    | Some(widget) -> 
+      match widget.session.kernel with
+      | Some(kernel) -> Some(kernel)
+      | None -> None
+    | None -> None
+  else
+    None
+
+//TODO: rewrite this using https://stackoverflow.com/questions/42675433/how-can-i-dynamically-generate-content-of-a-blockly-dropdown-menu
+//i.e., such that the output of the promise is the modification of the dictionary
+let GetKernelCompletion( queryString : string ) =
+  match GetKernel() with
+  | Some(kernel) -> 
+    promise {
+      let! reply = kernel.requestComplete( !!{| code = queryString; cursor_pos = queryString.Length |} )
+      let content: ICompleteReply = unbox reply.content
+      return content.matches.ToArray()
+    }
+    |> Promise.either (fun x -> !^(x)) (fun err -> !^[||]) // Promise.start
+  | None -> Promise.lift( [||])
+
+/// Store tooltips for variables to improve performance
+let intellisenseLookup = new System.Collections.Generic.Dictionary<string,IntellisenseVariable>()
+/// Determine if an entry descends from object or not
+let isInstance( ie : IntellisenseEntry ) = ie.Info.Contains("Type: instance")
+/// Get an IntellisenseVariable. If the type does not descend from object, the children will be empty
+let GetIntellisenseVariable( name : string ) =
+  if not <| intellisenseLookup.ContainsKey( name ) then
+    //do an info lookup. if this is not an instance type, continue to doing tooltip lookup
+
+    ()
+    // Do the lookups here
+  //
+  intellisenseLookup.[name]
 
 //TODO: We need to get the var name in order to call the kernel to generate the list. Every time the variable changes, we should update the list
-// for now, ignore performance. Current status is that it's hard to get the variable name, but it is present in the JS inspector in chrome
+// For now, ignore performance. 
+// First approach was to 
 let tooltipOptions( block : Blockly.Block ) =
-  let varName = 
-    match block.getFieldValue("VAR") with
-    | Some(value) -> value |> string
-    | None -> (block.getField("VAR") :?> Blockly.FieldVariable).defaultVariableName //TODO try "getText"; also see other ways of getting name
-  let varField = block.getField("VAR")
-  // let varName = varField.name |> unbox<string>
-  let test = "" //blockly?Python?variableDB_?getName( block.getFieldValue("VAR").Value |> string, blockly?Variables?NAME_TYPE);
-  [| [| varName; test  |] |]
+  // At this stage the VAR field is not associated with the variable name presented to the user, e.g. "x"
+  // let varName = 
+  //   match block.getFieldValue("VAR") with
+  //   | Some(value) -> value |> string
+  //   | None -> (block.getField("VAR") :?> Blockly.FieldVariable).defaultVariableName 
+  // let varField = block.getField("VAR")
+
+  //We can get a list of variables by accessing the workspace. The last variable created is the last element in the list returned.
+  let lastVar = block.workspace.getAllVariables() |> Seq.last
+  let intellisenseVar = lastVar.name |> GetIntellisenseVariable 
+  let propertyOptions = 
+    if intellisenseVar.VariableEntry.isInstance && intellisenseVar.ChildEntries.Length > 0 then
+      intellisenseVar.ChildEntries |> Array.filter( fun ie -> ie.isInstance ) |> Array.map( fun ie -> [| ie.Name; ie.Name |] )
+    else
+      [| [| "Wait..."; "Wait..." |] |]
+  //NOTE: for dropdowns, blockly returns the label, e.g. "VAR", not the value displayed to the user. Making them identical allows us to get the value displayed to user
+  propertyOptions
 
 blockly?Blocks.["varGetProperty"] <- createObj [
     "init" ==> fun () -> 
@@ -193,12 +211,15 @@ blockly?Blocks.["varGetProperty"] <- createObj [
         .appendField(!^"from") 
         .appendField( !^(blockly.FieldVariable.Create("variable name") :?> Blockly.Field), "VAR"  )
         .appendField( !^"get") 
-        // .appendField( !^(blockly.FieldDropdown.Create( [||] ) ) ) |> ignore
+        //.appendField( !^(blockly.FieldDropdown.Create( [| [| "Please wait"; "Please wait" |] |] ) :> Blockly.Field ), "PROPERTY" ) |> ignore
+        // We can't get the variable that VAR is set to in tooltipOptions; it hasn't been fully initialized yet
         .appendField( !^(blockly.FieldDropdown.Create(  tooltipOptions(thisBlock)  ) :> Blockly.Field), "PROPERTY"  ) |> ignore //[| [| "field"; "FIELD" |] |]
+      thisBlock.setOutput(true)
       thisBlock.setColour !^230.0
       thisBlock.setTooltip !^"TODO"
       thisBlock.setHelpUrl !^""
-      //catch events to set the property dropdown
+
+      //UNTESTED ALTERNATIVE: catch events to set the property dropdown
       // FAILS:  The address of a value returned from the expression cannot be used at this point. This is to ensure the address of the local value does not escape its scope.
       // thisBlock.setOnChange <- fun (e:Blockly.Events.Change) ->
       //   if thisBlock.workspace <> null && not <| thisBlock.isInFlyout && e.``type`` = Blockly.events?BLOCK_CHANGE then //TODO fix event types
@@ -212,28 +233,13 @@ blockly?Blocks.["varGetProperty"] <- createObj [
 
 
 
-// [| [| "field"; "FIELD" |] |] 
-
 /// Generate Python bool conversion code
-// blockly?Python.["varGetProperty"] <- fun (block : Blockly.Block) -> 
-//   let x = blockly?Python?valueToCode( block, "x", blockly?Python?ORDER_ATOMIC )
-//   let code =  functionStr + "(" + x + ")"
-//   [| code; blockly?Python?ORDER_FUNCTION_CALL |]
-
-
-// Blockly.Blocks['block_type'] = {
-//   init: function() {
-//     this.appendDummyInput()
-//         .appendField("from")
-//         .appendField(new Blockly.FieldVariable("item"), "VAR")
-//         .appendField("get")
-//         .appendField(new Blockly.FieldDropdown([["option","OPTIONNAME"], ["option","OPTIONNAME"], ["option","OPTIONNAME"]]), "FIELD");
-//     this.setOutput(true, null);
-//     this.setColour(230);
-//  this.setTooltip("");
-//  this.setHelpUrl("");
-//   }
-// };
+blockly?Python.["varGetProperty"] <- fun (block : Blockly.Block) -> 
+  let varName = blockly?Python?variableDB_?getName( block.getFieldValue("VAR").Value |> string, blockly?Variables?NAME_TYPE);
+  let propertyName = block.getFieldValue("PROPERTY").Value |> string
+  // let x = blockly?Python?valueToCode( block, "VAR", blockly?Python?ORDER_ATOMIC )
+  let code =  varName + "." + propertyName
+  [| code; blockly?Python?ORDER_FUNCTION_CALL |]
 
 // Override the dynamic 'Variables' toolbox category initialized in blockly_compressed.js
 // The basic idea here is that as we add vars, we extend the list of vars in the dropdowns in this category
@@ -278,8 +284,6 @@ blockly?Variables?flyoutCategoryBlocks <- fun (workspace : Blockly.Workspace) ->
         xml.appendChild( Blockly.variables.generateVariableFieldDom(variable)) |> ignore
         xmlList.Add(xml)
   xmlList
-
-//Python generators for new dynamic "Variables"; NOTE THESE CONTINUE TO EXIST AFTER VARIABLE IS DELETED
 
 
 /// A static toolbox copied from one of Google's online demos at https://blockly-demo.appspot.com/static/demos/index.html

@@ -30,6 +30,9 @@ type BlocklyWidget(notebooks:JupyterlabNotebook.Tokens.INotebookTracker) as this
     inherit Widget()
     let generator = Blockly.python //Blockly.javascript
     do
+        //inject intellisense dependency into Blockly toolbox
+        Toolbox.notebooks <- notebooks
+        
         //div to hold blockly
         let div = document.createElement("div")
         div.setAttribute("style", "height: 480px; width: 600px;")

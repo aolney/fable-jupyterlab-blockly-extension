@@ -3040,7 +3040,8 @@ module Blockly =
         /// abort the change.</param>
         /// <param name="opt_config">A map of options used to configure the field.
         /// See the [field creation documentation]{</param>
-        [<Emit "new $0($1...)">] abstract Create: menuGenerator: U2<ResizeArray<ResizeArray<obj option>>, Function> * ?opt_validator: Function * ?opt_config: Object -> FieldDropdown // FieldDropdown__Class
+        [<Emit "new $0($1...)">] abstract Create: menuGenerator: U2<string[][], Function> * ?opt_validator: Function * ?opt_config: Object -> FieldDropdown // FieldDropdown__Class
+        // [<Emit "new $0($1...)">] abstract Create: menuGenerator: U2<ResizeArray<ResizeArray<obj option>>, Function> * ?opt_validator: Function * ?opt_config: Object -> FieldDropdown // FieldDropdown__Class
 
 
     /// Fake class which should be extended to avoid inheriting static properties 

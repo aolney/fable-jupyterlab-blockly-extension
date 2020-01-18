@@ -54,7 +54,7 @@ blockly?Blocks.["import"] <- createObj [
 blockly?Python.["import"] <- fun (block : Blockly.Block) -> 
   let libraryName = block.getFieldValue("libraryName").Value |> string
   let libraryAlias = blockly?Python?variableDB_?getName( block.getFieldValue("libraryAlias").Value |> string, blockly?Variables?NAME_TYPE);
-  let code =  "import " + libraryName + " from " + libraryAlias
+  let code =  "import " + libraryName + " as " + libraryAlias + "\n"
   code
 
 /// A template for block creation, including the code generator.
@@ -71,7 +71,7 @@ let makeSingleArgFunctionBlock blockName (label:string) (outputType:string) (too
       thisBlock.setTooltip !^tooltip
       thisBlock.setHelpUrl !^helpurl
     ]
-  /// Generate Python bool conversion code
+  /// Generate Python template conversion code
   blockly?Python.[blockName] <- fun (block : Blockly.Block) -> 
     let x = blockly?Python?valueToCode( block, "x", blockly?Python?ORDER_ATOMIC )
     let code =  functionStr + "(" + x + ")"
@@ -130,9 +130,9 @@ makeSingleArgFunctionBlock
 /// An entry for a single name (var/function/whatever)
 type IntellisenseEntry =
   {
-    Name : string //from tooltip
-    Info : string //from introspection
-    isInstance : bool //from introspection, do we descend from object
+    Name : string //from user if parent and completion if child
+    Info : string //from inspection
+    isFunction : bool //from inspection
   }
 // An entry for a complex name, e.g. object, that has associated properties and/or methods
 type IntellisenseVariable =
@@ -148,7 +148,7 @@ let GetKernel() =
     match notebooks.currentWidget with
     | Some(widget) -> 
       match widget.session.kernel with
-      | Some(kernel) -> Some(kernel)
+      | Some(kernel) -> Some(widget,kernel)
       | None -> None
     | None -> None
   else
@@ -158,50 +158,111 @@ let GetKernel() =
 //i.e., such that the output of the promise is the modification of the dictionary
 let GetKernelCompletion( queryString : string ) =
   match GetKernel() with
-  | Some(kernel) -> 
+  | Some(_, kernel) -> 
     promise {
       let! reply = kernel.requestComplete( !!{| code = queryString; cursor_pos = queryString.Length |} )
       let content: ICompleteReply = unbox reply.content
       return content.matches.ToArray()
     }
-    |> Promise.either (fun x -> !^(x)) (fun err -> !^[||]) // Promise.start
-  | None -> Promise.lift( [||])
+    // |> Promise.start // Promise.either (fun x -> !^(x)) (fun err -> !^[||]) // Promise.start
+  | None -> Promise.reject "no kernel" // () //Promise.lift( [||])
 
-/// Store tooltips for variables to improve performance
+let GetKernalInspection( queryString : string ) =
+  match GetKernel() with 
+  | Some( widget, kernel ) ->
+    promise {
+      let! reply = kernel.requestInspect( !!{| code = queryString; cursor_pos = queryString.Length; detail_level = 0 |} )
+      //formatting the reply is involved because it has some kind of funky ascii encoding
+      let content: IInspectReply = unbox reply.content
+      if content.found then
+        let mimeType = widget.content.rendermime.preferredMimeType( unbox content.data);
+        let renderer = widget.content.rendermime.createRenderer( mimeType.Value )
+        let payload : PhosphorCoreutils.ReadonlyJSONObject = !!content.data
+        let model= JupyterlabRendermime.Mimemodel.Types.MimeModel.Create( !!{| data = Some(payload)  |} )
+        let! _ = renderer.renderModel(model) //better way to await a unit promise?
+        //displayArea.innerText <- displayArea.innerText + renderer.node.innerText
+        return renderer.node.innerText
+      else
+        return "The kernel has no information about this variable."
+    }
+    // |> Promise.start
+  | None -> Promise.reject "no kernel"  //()
+
+/// Store results of promise so that synchronous calls can access. Keyed on variable name
 let intellisenseLookup = new System.Collections.Generic.Dictionary<string,IntellisenseVariable>()
-/// Determine if an entry descends from object or not
-let isInstance( ie : IntellisenseEntry ) = ie.Info.Contains("Type: instance")
-/// Get an IntellisenseVariable. If the type does not descend from object, the children will be empty
-let GetIntellisenseVariable( name : string ) =
-  if not <| intellisenseLookup.ContainsKey( name ) then
-    //do an info lookup. if this is not an instance type, continue to doing tooltip lookup
+// V2 of the above with 2 stores: one that maps var names to docstrings, and one that maps docstrings to results of promise. Idea is that the docstring/result mapping is fairly static and will not change with var's type or renaming
+// let docIntellisenseMap = new System.Collections.Generic.Dictionary<string,IntellisenseVariable>()
+// let nameDocMap = new System.Collections.Generic.Dictionary<string,string>()
 
-    ()
-    // Do the lookups here
-  //
-  intellisenseLookup.[name]
+/// Determine if an entry is a function
+let isFunction( info : string ) = info.Contains("Type: function")
+
+/// Get an IntellisenseVariable. If the type does not descend from object, the children will be empty.
+/// Sometimes we will create a variable but it will have no type until we make an assignment. 
+/// We might also create a variable and then change its type.
+/// So we need to check for introspections/completions repeatedly (no caching).
+let GetIntellisenseVariable( parentName : string ) =
+  // if not <| intellisenseLookup.ContainsKey( name ) then //No caching; see above
+  // Update the intellisenseLookup asynchronously. First do an info lookup. If var is not an instance type, continue to doing tooltip lookup
+  promise {
+    let! parentInspection = GetKernalInspection( parentName )
+    let parent = { Name=parentName;  Info=parentInspection; isFunction=isFunction(parentInspection) }
+    // V2 store the name/docstring pair. This is always overwritten.
+    // if not <| nameDocMap.ContainsKey( parentName ) then nameDocMap.Add(parentName,parentInspection) else nameDocMap.[parentName] <- parentInspection
+
+    // V2 only search for completions if the docstring has not previously been stored
+    // if not <| docIntellisenseMap.ContainsKey( parentInspection ) then
+      // promise {  //if promise ce absent here, then preceding conditional is not transpiled   
+    let! completions = GetKernelCompletion( parentName + "." ) //all completions that follow "name."
+    let! inspections = 
+      // if not <| parent.isInstance then //No caching; see above
+      completions
+      |> Array.map( fun completion ->  GetKernalInspection(parentName + "." + completion) ) //all introspections of name.completion
+      |> Promise.Parallel
+      // else
+      //   Promise.lift [||] //No caching; see above
+    let children = 
+        Array.zip completions inspections 
+        |> Array.map( fun (completion,inspection) -> 
+          {Name=completion; Info=inspection; isFunction=isFunction(inspection) }
+        ) 
+    let intellisenseVariable = { VariableEntry=parent; ChildEntries=children}
+    // Store so we can synchronously find results later; if we have seen this var before, overwrite.
+    if intellisenseLookup.ContainsKey( parentName ) then
+      intellisenseLookup.[parentName] <- intellisenseVariable
+    else
+      intellisenseLookup.Add( parentName, intellisenseVariable)
+
+    // V2 - never overwritten
+    // if not <| docIntellisenseMap.ContainsKey( parentInspection ) then
+    // docIntellisenseMap.Add( parentInspection, intellisenseVariable)
+      // } |> Promise.start
+  } |> Promise.start
+  
+  // Now do the lookups here. We expect to fail on first call because the promise has not resolved. We may also lag "truth" if variable type changes.
+  match intellisenseLookup.TryGetValue(parentName) with
+  | true, ie -> Some(ie)
+  | false,_ -> None
+  //FLAKEY CACHING METHOD FOLLOWS
+  // match nameDocMap.TryGetValue(parentName) with
+  // | true, doc -> 
+  //   match docIntellisenseMap.TryGetValue(doc) with
+  //   | true, intellisenseVariable -> Some(intellisenseVariable)
+  //   | false, _ -> None
+  // | false,_ -> None
 
 //TODO: We need to get the var name in order to call the kernel to generate the list. Every time the variable changes, we should update the list
-// For now, ignore performance. 
-// First approach was to 
+// For now, ignore performance. NOTE can we use an event to retrigger init once the promise completes?
 let tooltipOptions( block : Blockly.Block ) =
   // At this stage the VAR field is not associated with the variable name presented to the user, e.g. "x"
-  // let varName = 
-  //   match block.getFieldValue("VAR") with
-  //   | Some(value) -> value |> string
-  //   | None -> (block.getField("VAR") :?> Blockly.FieldVariable).defaultVariableName 
-  // let varField = block.getField("VAR")
-
   //We can get a list of variables by accessing the workspace. The last variable created is the last element in the list returned.
   let lastVar = block.workspace.getAllVariables() |> Seq.last
-  let intellisenseVar = lastVar.name |> GetIntellisenseVariable 
-  let propertyOptions = 
-    if intellisenseVar.VariableEntry.isInstance && intellisenseVar.ChildEntries.Length > 0 then
-      intellisenseVar.ChildEntries |> Array.filter( fun ie -> ie.isInstance ) |> Array.map( fun ie -> [| ie.Name; ie.Name |] )
-    else
-      [| [| "Wait..."; "Wait..." |] |]
-  //NOTE: for dropdowns, blockly returns the label, e.g. "VAR", not the value displayed to the user. Making them identical allows us to get the value displayed to user
-  propertyOptions
+  match  lastVar.name |> GetIntellisenseVariable with
+  | Some( iv ) when not(iv.VariableEntry.isFunction) && iv.ChildEntries.Length > 0  -> 
+      //NOTE: for dropdowns, blockly returns the label, e.g. "VAR", not the value displayed to the user. Making them identical allows us to get the value displayed to user
+      iv.ChildEntries |> Array.filter( fun ie -> not(ie.isFunction) ) |> Array.map( fun ie -> [| ie.Name; ie.Name |] )
+  | _ ->  [| [| "Wait..."; "Wait..." |] |]
+
 
 blockly?Blocks.["varGetProperty"] <- createObj [
     "init" ==> fun () -> 

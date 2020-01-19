@@ -7,7 +7,8 @@ open Browser
 open Browser.Types
 
 //amo
-type Function = Func<unit>
+type Function = Func<string,obj>
+// type Function = Func<unit>
 
 /// [<Import("*","blockly")>] appears to call index.js which calls either browser.js or node.js; 
 /// browser.js then calls core-browser, blockly, en, blocks, and javascript generator; 
@@ -3065,7 +3066,9 @@ module Blockly =
         /// <summary>Return a list of the options for this dropdown.</summary>
         /// <param name="opt_useCache">For dynamic options, whether or not to use the
         /// cached options or to re-generate them.</param>
-        abstract getOptions: ?opt_useCache: bool -> ResizeArray<ResizeArray<obj option>>
+        abstract getOptions: ?opt_useCache: bool -> ResizeArray<ResizeArray<string>>
+        // original below
+        // abstract getOptions: ?opt_useCache: bool -> ResizeArray<ResizeArray<obj option>>
         /// Ensure that the input value is a valid language-neutral option.
         abstract doClassValidation_: ?opt_newValue: obj -> string
         /// <summary>Update the value of this dropdown field.</summary>

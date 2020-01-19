@@ -32,9 +32,14 @@ open JupyterlabServices.__kernel_messages.KernelMessage
   //)
 
 
-/// Emit as "this" as an interop workaround
+/// Emit "this" typed to Block as an interop workaround
 [<Emit("this")>]
 let thisBlock : Blockly.Block = jsNative
+
+/// Emit "this" untyped as an interop workaround
+[<Emit("this")>]
+let thisObj : obj = jsNative
+
 
 /// Create a Blockly/Python import block
 blockly?Blocks.["import"] <- createObj [
@@ -154,8 +159,7 @@ let GetKernel() =
   else
     None
 
-//TODO: rewrite this using https://stackoverflow.com/questions/42675433/how-can-i-dynamically-generate-content-of-a-blockly-dropdown-menu
-//i.e., such that the output of the promise is the modification of the dictionary
+/// Get a completion (tab+tab) using the kernel. Typically this will be following a "." but it could also be to match a known identifier against a few initial letters.
 let GetKernelCompletion( queryString : string ) =
   match GetKernel() with
   | Some(_, kernel) -> 
@@ -164,9 +168,9 @@ let GetKernelCompletion( queryString : string ) =
       let content: ICompleteReply = unbox reply.content
       return content.matches.ToArray()
     }
-    // |> Promise.start // Promise.either (fun x -> !^(x)) (fun err -> !^[||]) // Promise.start
   | None -> Promise.reject "no kernel" // () //Promise.lift( [||])
 
+/// Get an inspection (shift+tab) using the kernel. AFAIK this only works after a complete known identifier.
 let GetKernalInspection( queryString : string ) =
   match GetKernel() with 
   | Some( widget, kernel ) ->
@@ -179,22 +183,21 @@ let GetKernalInspection( queryString : string ) =
         let renderer = widget.content.rendermime.createRenderer( mimeType.Value )
         let payload : PhosphorCoreutils.ReadonlyJSONObject = !!content.data
         let model= JupyterlabRendermime.Mimemodel.Types.MimeModel.Create( !!{| data = Some(payload)  |} )
-        let! _ = renderer.renderModel(model) //better way to await a unit promise?
-        //displayArea.innerText <- displayArea.innerText + renderer.node.innerText
+        let! _ = renderer.renderModel(model) 
         return renderer.node.innerText
       else
-        return "The kernel has no information about this variable."
+        return "Not defined until you execute code."
     }
-    // |> Promise.start
   | None -> Promise.reject "no kernel"  //()
 
-/// Store results of promise so that synchronous calls can access. Keyed on variable name
+/// Store results of resolved promises so that future synchronous calls can access. Keyed on variable name
 let intellisenseLookup = new System.Collections.Generic.Dictionary<string,IntellisenseVariable>()
 // V2 of the above with 2 stores: one that maps var names to docstrings, and one that maps docstrings to results of promise. Idea is that the docstring/result mapping is fairly static and will not change with var's type or renaming
+//(NOTE: V2 MAY NOT BE FLAKEY, MAY HAVE FORGOTTEN TO CALL nltk.data.path.append("/y/nltk_data"))
 // let docIntellisenseMap = new System.Collections.Generic.Dictionary<string,IntellisenseVariable>()
 // let nameDocMap = new System.Collections.Generic.Dictionary<string,string>()
 
-/// Determine if an entry is a function
+/// Determine if an entry is a function. We have separate blocks for properties and functions because only function blocks need parameters
 let isFunction( info : string ) = info.Contains("Type: function")
 
 /// Get an IntellisenseVariable. If the type does not descend from object, the children will be empty.
@@ -238,12 +241,12 @@ let GetIntellisenseVariable( parentName : string ) =
     // docIntellisenseMap.Add( parentInspection, intellisenseVariable)
       // } |> Promise.start
   } |> Promise.start
-  
+
   // Now do the lookups here. We expect to fail on first call because the promise has not resolved. We may also lag "truth" if variable type changes.
   match intellisenseLookup.TryGetValue(parentName) with
   | true, ie -> Some(ie)
   | false,_ -> None
-  //FLAKEY CACHING METHOD FOLLOWS
+  //FLAKEY CACHING METHOD FOLLOWS (NOTE: MAY NOT BE FLAKEY, MAY HAVE FORGOTTEN TO CALL nltk.data.path.append("/y/nltk_data"))
   // match nameDocMap.TryGetValue(parentName) with
   // | true, doc -> 
   //   match docIntellisenseMap.TryGetValue(doc) with
@@ -251,45 +254,76 @@ let GetIntellisenseVariable( parentName : string ) =
   //   | false, _ -> None
   // | false,_ -> None
 
-//TODO: We need to get the var name in order to call the kernel to generate the list. Every time the variable changes, we should update the list
+//We need to get the var name in order to call the kernel to generate the list. Every time the variable changes, we should update the list
 // For now, ignore performance. NOTE can we use an event to retrigger init once the promise completes?
-let tooltipOptions( block : Blockly.Block ) =
-  // At this stage the VAR field is not associated with the variable name presented to the user, e.g. "x"
-  //We can get a list of variables by accessing the workspace. The last variable created is the last element in the list returned.
-  let lastVar = block.workspace.getAllVariables() |> Seq.last
-  match  lastVar.name |> GetIntellisenseVariable with
+// NOTE: this works but only on the last var created. It does not fire when the var dropdown changes
+// let optionsGenerator( block : Blockly.Block ) =
+//   // At this stage the VAR field is not associated with the variable name presented to the user, e.g. "x"
+//   //We can get a list of variables by accessing the workspace. The last variable created is the last element in the list returned.
+//   let lastVar = block.workspace.getAllVariables() |> Seq.last
+let optionsGenerator( varName : string ) =
+  match  varName |> GetIntellisenseVariable with
   | Some( iv ) when not(iv.VariableEntry.isFunction) && iv.ChildEntries.Length > 0  -> 
       //NOTE: for dropdowns, blockly returns the label, e.g. "VAR", not the value displayed to the user. Making them identical allows us to get the value displayed to user
       iv.ChildEntries |> Array.filter( fun ie -> not(ie.isFunction) ) |> Array.map( fun ie -> [| ie.Name; ie.Name |] )
-  | _ ->  [| [| "Wait..."; "Wait..." |] |]
+  | _ ->  [| [| "Not defined until you execute code."; "Not defined until you execute code." |] |]
 
+let requestIntellisenseOptions( varName : string ) =
+  match  varName |> GetIntellisenseVariable with
+  | Some( iv ) when not(iv.VariableEntry.isFunction) && iv.ChildEntries.Length > 0  -> 
+      //NOTE: for dropdowns, blockly returns the label, e.g. "VAR", not the value displayed to the user. Making them identical allows us to get the value displayed to user
+      iv.ChildEntries |> Array.filter( fun ie -> not(ie.isFunction) ) |> Array.map( fun ie -> [| ie.Name; ie.Name |] )
+  | _ ->  [| [| "Not defined until you execute code."; "Not defined until you execute code." |] |]
 
 blockly?Blocks.["varGetProperty"] <- createObj [
     "init" ==> fun () -> 
+
+      //If we need to pass "this" into a closure, we rename to work around shadowing
+      let thisBlockClosure = thisBlock
+
       Browser.Dom.console.log( "varGetProperty" + " init")
-      //query the kernel to get a list of properties for this variable (use intellisense)
-      thisBlock.appendDummyInput()
+
+      /// Get the user-facing label of the currently selected variable (None) or specific option (Some)
+      let varSelectionUserName( selectedOption : string option) =
+        let fieldVariable = thisBlockClosure.getField("VAR") :?> Blockly.FieldVariable
+        let selectionUserName =
+          match selectedOption with 
+          | Some( option ) -> fieldVariable.getOptions() |> Seq.find( fun o -> o.[1] = option ) |> Seq.head
+          | None -> fieldVariable.getText()
+        selectionUserName
+
+      thisBlock.appendDummyInput("INPUT")
         .appendField(!^"from") 
-        .appendField( !^(blockly.FieldVariable.Create("variable name") :?> Blockly.Field), "VAR"  )
+
+        //Use the validator called on variable selection to change the options property dropdown so that we get correct options when variable changes
+        .appendField( !^(blockly.FieldVariable.Create("variable name", System.Func<string,obj>( fun newSelection ->
+          // Within validator, "this" refers to FieldVariable not block.
+          let (thisFieldVariable : Blockly.FieldVariable) = !!thisObj
+          
+          // update the options FieldDropdown by recreating it with the newly selected variable name
+          let input = thisBlockClosure.getInput("INPUT")
+          input.removeField("PROPERTY")
+          input.appendField( !^(blockly.FieldDropdown.Create( newSelection |> Some |> varSelectionUserName |> optionsGenerator ) :> Blockly.Field), "PROPERTY"  ) |> ignore 
+
+          //Since we are leveraging the validator, we return the selected value without modification
+          newSelection |> unbox)
+         ) :?> Blockly.Field), "VAR"  )
+
         .appendField( !^"get") 
-        //.appendField( !^(blockly.FieldDropdown.Create( [| [| "Please wait"; "Please wait" |] |] ) :> Blockly.Field ), "PROPERTY" ) |> ignore
-        // We can't get the variable that VAR is set to in tooltipOptions; it hasn't been fully initialized yet
-        .appendField( !^(blockly.FieldDropdown.Create(  tooltipOptions(thisBlock)  ) :> Blockly.Field), "PROPERTY"  ) |> ignore //[| [| "field"; "FIELD" |] |]
+        // .appendField( !^(blockly.FieldDropdown.Create( [| [| "Not defined until you execute code."; "UNDEFINED" |] |] ) :> Blockly.Field ), "PROPERTY" ) |> ignore
+        // Create the options FieldDropdown using "optionsGenerator" with the selected name, currently None
+        .appendField( !^(blockly.FieldDropdown.Create( None |> varSelectionUserName |> optionsGenerator ) :> Blockly.Field), "PROPERTY"  ) |> ignore 
+      
       thisBlock.setOutput(true)
       thisBlock.setColour !^230.0
       thisBlock.setTooltip !^"TODO"
       thisBlock.setHelpUrl !^""
 
-      //UNTESTED ALTERNATIVE: catch events to set the property dropdown
-      // FAILS:  The address of a value returned from the expression cannot be used at this point. This is to ensure the address of the local value does not escape its scope.
-      // thisBlock.setOnChange <- fun (e:Blockly.Events.Change) ->
-      //   if thisBlock.workspace <> null && not <| thisBlock.isInFlyout && e.``type`` = Blockly.events?BLOCK_CHANGE then //TODO fix event types
-      //     ()
-    //
-    // NOTE: this is functional; holding as a backup in case dynamic menus are not performant
-    // "onchange" ==> fun (e:Blockly.Events.Change) ->
-    //   if thisBlock.workspace <> null && not <| thisBlock.isInFlyout && e.``type`` = Blockly.events?BLOCK_CHANGE then //TODO fix event types
-    //     ()
+    //Listen for intellisense ready events
+    "onchange" ==> fun (e:Blockly.Events.Change) ->
+      if thisBlock.workspace <> null && not <| thisBlock.isInFlyout && e.``type`` = Blockly.events?BLOCK_CHANGE then //TODO fix event types
+
+        ()
     ]
 
 

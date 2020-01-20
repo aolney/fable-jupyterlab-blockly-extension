@@ -10,8 +10,10 @@ type Error =  Node.Base.Error
 type [<AllowNullLiteral>] IExports =
     abstract Signal: SignalStatic
 
-type [<AllowNullLiteral>] Slot<'T, 'U> =
-    [<Emit "$0($1...)">] abstract Invoke: sender: 'T * args: 'U -> unit
+//AMO changed
+type Slot<'T, 'U> = Func<'T,'U,bool>
+// type [<AllowNullLiteral>] Slot<'T, 'U> =
+//     [<Emit "$0($1...)">] abstract Invoke: sender: 'T * args: 'U -> unit
 
 /// An object used for type-safe inter-object communication.
 /// 

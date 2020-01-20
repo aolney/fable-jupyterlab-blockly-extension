@@ -1220,6 +1220,15 @@ module Blockly =
 
         type [<AllowNullLiteral>] ChangeStatic =
             [<Emit "new $0($1...)">] abstract Create: unit -> Change
+            /// <summary>Class for a block change event.</summary>
+            /// <param name="block">The changed block.  Null for a blank event.</param>
+            /// <param name="element">One of 'field', 'comment', 'disabled', etc.</param>
+            /// <param name="name">Name of input or field affected, or null.</param>
+            /// <param name="oldValue">Previous value of element.</param>
+            /// <param name="newValue">New value of element.</param>
+            /// AMO moved from below
+            [<Emit "new $0($1...)">] abstract Create: block: Blockly.Block * element: string * name: string * oldValue: obj * newValue: obj -> Change
+            // [<Emit "new $0($1...)">] abstract Create: block: Blockly.Block * element: string * name: string * oldValue: obj option * newValue: obj option -> Change
 
         /// Fake class which should be extended to avoid inheriting static properties 
         type [<AllowNullLiteral>] Change__Class =
@@ -1252,6 +1261,15 @@ module Blockly =
 
         type [<AllowNullLiteral>] BlockChangeStatic =
             [<Emit "new $0($1...)">] abstract Create: unit -> BlockChange
+            /// <summary>Class for a block change event.</summary>
+            /// <param name="block">The changed block.  Null for a blank event.</param>
+            /// <param name="element">One of 'field', 'comment', 'disabled', etc.</param>
+            /// <param name="name">Name of input or field affected, or null.</param>
+            /// <param name="oldValue">Previous value of element.</param>
+            /// <param name="newValue">New value of element.</param>
+            /// AMO moved from below
+            [<Emit "new $0($1...)">] abstract Create: block: Blockly.Block * element: string * name: string * oldValue: obj * newValue: obj -> BlockChange
+
 
         /// Fake class which should be extended to avoid inheriting static properties 
         type [<AllowNullLiteral>] BlockChange__Class =

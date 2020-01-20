@@ -147,7 +147,8 @@ type IntellisenseVariable =
   }
 
 /// Dependency injected from JupyterLab. Needed to send intellisense requests to the kernel
-let mutable (notebooks : JupyterlabNotebook.Tokens.INotebookTracker ) = null
+let mutable ( notebooks : JupyterlabNotebook.Tokens.INotebookTracker ) = null
+
 let GetKernel() =
   if notebooks <> null then
     match notebooks.currentWidget with
@@ -186,7 +187,7 @@ let GetKernalInspection( queryString : string ) =
         let! _ = renderer.renderModel(model) 
         return renderer.node.innerText
       else
-        return "Not defined until you execute code."
+        return "UNDEFINED" //we check for this case below
     }
   | None -> Promise.reject "no kernel"  //()
 
@@ -200,11 +201,11 @@ let intellisenseLookup = new System.Collections.Generic.Dictionary<string,Intell
 /// Determine if an entry is a function. We have separate blocks for properties and functions because only function blocks need parameters
 let isFunction( info : string ) = info.Contains("Type: function")
 
-/// Get an IntellisenseVariable. If the type does not descend from object, the children will be empty.
+/// Request an IntellisenseVariable. If the type does not descend from object, the children will be empty.
 /// Sometimes we will create a variable but it will have no type until we make an assignment. 
 /// We might also create a variable and then change its type.
-/// So we need to check for introspections/completions repeatedly (no caching).
-let GetIntellisenseVariable( parentName : string ) =
+/// So we need to check for introspections/completions repeatedly (no caching right now).
+let RequestIntellisenseVariable(block : Blockly.Block) ( parentName : string ) =
   // if not <| intellisenseLookup.ContainsKey( name ) then //No caching; see above
   // Update the intellisenseLookup asynchronously. First do an info lookup. If var is not an instance type, continue to doing tooltip lookup
   promise {
@@ -236,16 +237,23 @@ let GetIntellisenseVariable( parentName : string ) =
     else
       intellisenseLookup.Add( parentName, intellisenseVariable)
 
+    //Call update event  
+    let intellisenseUpdateEvent = Blockly.events.Change.Create(block, "field", "VAR", 0, 1) 
+    intellisenseUpdateEvent.group <- "INTELLISENSE"
+    Blockly.events.fire( intellisenseUpdateEvent :?> Blockly.Events.Abstract )
+
     // V2 - never overwritten
     // if not <| docIntellisenseMap.ContainsKey( parentInspection ) then
     // docIntellisenseMap.Add( parentInspection, intellisenseVariable)
       // } |> Promise.start
   } |> Promise.start
 
-  // Now do the lookups here. We expect to fail on first call because the promise has not resolved. We may also lag "truth" if variable type changes.
-  match intellisenseLookup.TryGetValue(parentName) with
-  | true, ie -> Some(ie)
-  | false,_ -> None
+
+// let GetIntellisenseVariable( name : string ) = 
+//   // Now do the lookups here. We expect to fail on first call because the promise has not resolved. We may also lag "truth" if variable type changes.
+//   match intellisenseLookup.TryGetValue(name) with
+//   | true, ie -> Some(ie)
+//   | false,_ -> None
   //FLAKEY CACHING METHOD FOLLOWS (NOTE: MAY NOT BE FLAKEY, MAY HAVE FORGOTTEN TO CALL nltk.data.path.append("/y/nltk_data"))
   // match nameDocMap.TryGetValue(parentName) with
   // | true, doc -> 
@@ -261,36 +269,67 @@ let GetIntellisenseVariable( parentName : string ) =
 //   // At this stage the VAR field is not associated with the variable name presented to the user, e.g. "x"
 //   //We can get a list of variables by accessing the workspace. The last variable created is the last element in the list returned.
 //   let lastVar = block.workspace.getAllVariables() |> Seq.last
-let optionsGenerator( varName : string ) =
-  match  varName |> GetIntellisenseVariable with
-  | Some( iv ) when not(iv.VariableEntry.isFunction) && iv.ChildEntries.Length > 0  -> 
-      //NOTE: for dropdowns, blockly returns the label, e.g. "VAR", not the value displayed to the user. Making them identical allows us to get the value displayed to user
-      iv.ChildEntries |> Array.filter( fun ie -> not(ie.isFunction) ) |> Array.map( fun ie -> [| ie.Name; ie.Name |] )
-  | _ ->  [| [| "Not defined until you execute code."; "Not defined until you execute code." |] |]
+let requestAndStubOptions (block : Blockly.Block) ( varName : string ) =
+  if varName <> "" then
+    //initiate an intellisense request asynchronously
+    varName |> RequestIntellisenseVariable block
+  //return an option stub while we wait
+  if varName <> "" && varName |> intellisenseLookup.ContainsKey then
+      [| [| "Waiting for kernel to respond with options."; "Waiting for kernel to respond with options." |] |]
+    else
+      [| [| "!Not defined until you execute code."; "!Not defined until you execute code." |] |]
 
-let requestIntellisenseOptions( varName : string ) =
-  match  varName |> GetIntellisenseVariable with
-  | Some( iv ) when not(iv.VariableEntry.isFunction) && iv.ChildEntries.Length > 0  -> 
+let getIntellisensePropertyOptions( varName : string ) =
+  match  varName |> intellisenseLookup.TryGetValue with
+  | true, iv when not(iv.VariableEntry.isFunction) && iv.ChildEntries.Length > 0  -> 
       //NOTE: for dropdowns, blockly returns the label, e.g. "VAR", not the value displayed to the user. Making them identical allows us to get the value displayed to user
       iv.ChildEntries |> Array.filter( fun ie -> not(ie.isFunction) ) |> Array.map( fun ie -> [| ie.Name; ie.Name |] )
-  | _ ->  [| [| "Not defined until you execute code."; "Not defined until you execute code." |] |]
+  | false, _ ->  [| [| "!Not defined until you execute code."; "!Not defined until you execute code." |] |]
+  | true, iv when iv.VariableEntry.Info = "UNDEFINED" ->  [| [| "!Not defined until you execute code."; "!Not defined until you execute code." |] |]
+  | _ -> [| [| "!No properties available."; "!No properties available." |] |]
+
+/// Update all the blocks that use intellisense. Called after the kernel executes a cell so our intellisense in Blockly is updated.
+let UpdateAllIntellisense() =
+  let workspace = blockly.getMainWorkspace()
+  let blocks = workspace.getBlocksByType("varGetProperty", false)
+  for b in blocks do
+    b?updateIntellisense(b,None)
 
 blockly?Blocks.["varGetProperty"] <- createObj [
+    //Get the user-facing name of the selected variable; on creation, defaults to created name
+    "varSelectionUserName" ==> fun (thisBlockClosure : Blockly.Block) (selectedOption : string option)  ->
+      let fieldVariable = thisBlockClosure.getField("VAR") :?> Blockly.FieldVariable
+      let selectionUserName =
+        match selectedOption with 
+        | Some( option ) -> fieldVariable.getOptions() |> Seq.find( fun o -> o.[1] = option ) |> Seq.head
+        | None -> fieldVariable.getText() //on creation
+      selectionUserName
+
+    "updateIntellisense" ==> fun (thisBlockClosure : Blockly.Block) (selectedOption : string option)  ->
+      let fieldVariable = thisBlockClosure.getField("VAR") :?> Blockly.FieldVariable
+      let selectionUserName =
+        match selectedOption with 
+        | Some( option ) -> fieldVariable.getOptions() |> Seq.find( fun o -> o.[1] = option ) |> Seq.head
+        | None -> fieldVariable.getText() //on creation
+      let input = thisBlockClosure.getInput("INPUT")
+      input.removeField("PROPERTY")
+      input.appendField( !^(blockly.FieldDropdown.Create( requestAndStubOptions thisBlockClosure selectionUserName ) :> Blockly.Field), "PROPERTY"  ) |> ignore 
+
+
     "init" ==> fun () -> 
+      Browser.Dom.console.log( "varGetProperty" + " init")
 
       //If we need to pass "this" into a closure, we rename to work around shadowing
       let thisBlockClosure = thisBlock
 
-      Browser.Dom.console.log( "varGetProperty" + " init")
-
       /// Get the user-facing label of the currently selected variable (None) or specific option (Some)
-      let varSelectionUserName( selectedOption : string option) =
-        let fieldVariable = thisBlockClosure.getField("VAR") :?> Blockly.FieldVariable
-        let selectionUserName =
-          match selectedOption with 
-          | Some( option ) -> fieldVariable.getOptions() |> Seq.find( fun o -> o.[1] = option ) |> Seq.head
-          | None -> fieldVariable.getText()
-        selectionUserName
+      // let varSelectionUserName( selectedOption : string option) =
+      //   let fieldVariable = thisBlockClosure.getField("VAR") :?> Blockly.FieldVariable
+      //   let selectionUserName =
+      //     match selectedOption with 
+      //     | Some( option ) -> fieldVariable.getOptions() |> Seq.find( fun o -> o.[1] = option ) |> Seq.head
+      //     | None -> fieldVariable.getText()
+      //   selectionUserName
 
       thisBlock.appendDummyInput("INPUT")
         .appendField(!^"from") 
@@ -303,7 +342,7 @@ blockly?Blocks.["varGetProperty"] <- createObj [
           // update the options FieldDropdown by recreating it with the newly selected variable name
           let input = thisBlockClosure.getInput("INPUT")
           input.removeField("PROPERTY")
-          input.appendField( !^(blockly.FieldDropdown.Create( newSelection |> Some |> varSelectionUserName |> optionsGenerator ) :> Blockly.Field), "PROPERTY"  ) |> ignore 
+          input.appendField( !^(blockly.FieldDropdown.Create( thisBlockClosure?varSelectionUserName(thisBlockClosure, Some(newSelection))  |> requestAndStubOptions thisBlockClosure ) :> Blockly.Field), "PROPERTY"  ) |> ignore 
 
           //Since we are leveraging the validator, we return the selected value without modification
           newSelection |> unbox)
@@ -312,7 +351,7 @@ blockly?Blocks.["varGetProperty"] <- createObj [
         .appendField( !^"get") 
         // .appendField( !^(blockly.FieldDropdown.Create( [| [| "Not defined until you execute code."; "UNDEFINED" |] |] ) :> Blockly.Field ), "PROPERTY" ) |> ignore
         // Create the options FieldDropdown using "optionsGenerator" with the selected name, currently None
-        .appendField( !^(blockly.FieldDropdown.Create( None |> varSelectionUserName |> optionsGenerator ) :> Blockly.Field), "PROPERTY"  ) |> ignore 
+        .appendField( !^(blockly.FieldDropdown.Create( thisBlock?varSelectionUserName(thisBlockClosure, None) |> requestAndStubOptions thisBlock ) :> Blockly.Field), "PROPERTY"  ) |> ignore 
       
       thisBlock.setOutput(true)
       thisBlock.setColour !^230.0
@@ -321,19 +360,26 @@ blockly?Blocks.["varGetProperty"] <- createObj [
 
     //Listen for intellisense ready events
     "onchange" ==> fun (e:Blockly.Events.Change) ->
-      if thisBlock.workspace <> null && not <| thisBlock.isInFlyout && e.``type`` = Blockly.events?BLOCK_CHANGE then //TODO fix event types
-
+      if thisBlock.workspace <> null && not <| thisBlock.isInFlyout && e.group = "INTELLISENSE" then 
+        let thisBlockClosure = thisBlock
+        // update the options FieldDropdown by recreating it with the newly selected variable name
+        let input = thisBlock.getInput("INPUT")
+        input.removeField("PROPERTY")
+        input.appendField( !^(blockly.FieldDropdown.Create( thisBlock?varSelectionUserName(thisBlockClosure, None) |> getIntellisensePropertyOptions ) :> Blockly.Field), "PROPERTY"  ) |> ignore 
         ()
     ]
-
-
 
 /// Generate Python bool conversion code
 blockly?Python.["varGetProperty"] <- fun (block : Blockly.Block) -> 
   let varName = blockly?Python?variableDB_?getName( block.getFieldValue("VAR").Value |> string, blockly?Variables?NAME_TYPE);
   let propertyName = block.getFieldValue("PROPERTY").Value |> string
   // let x = blockly?Python?valueToCode( block, "VAR", blockly?Python?ORDER_ATOMIC )
-  let code =  varName + "." + propertyName
+  let code =  
+    //All of the "not defined" option messages start with "!"
+    if propertyName.StartsWith("!") then
+      ""
+    else 
+      varName + "." + propertyName
   [| code; blockly?Python?ORDER_FUNCTION_CALL |]
 
 // Override the dynamic 'Variables' toolbox category initialized in blockly_compressed.js

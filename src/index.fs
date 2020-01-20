@@ -9,6 +9,7 @@ open Browser.Types
 open Browser.Dom
 open Blockly
 open JupyterlabServices.__kernel_messages.KernelMessage
+open JupyterlabServices.__kernel_kernel.Kernel
 
 //tricky here: if we try to make collection of requires, F# complains they are different types unless we specify obj type
 let mutable requires : obj array = [| JupyterlabApputils.ICommandPalette; JupyterlabNotebook.Tokens.Types.INotebookTracker |]
@@ -32,6 +33,7 @@ type BlocklyWidget(notebooks:JupyterlabNotebook.Tokens.INotebookTracker) as this
     do
         //inject intellisense dependency into Blockly toolbox
         Toolbox.notebooks <- notebooks
+        // Toolbox.context <- context
         
         //div to hold blockly
         let div = document.createElement("div")
@@ -59,11 +61,14 @@ type BlocklyWidget(notebooks:JupyterlabNotebook.Tokens.INotebookTracker) as this
         this.node.appendChild(button) |> ignore
         this.node.appendChild(displayArea) |> ignore
 
-    
+    member val workspace : Blockly.Workspace = null with get, set
+    member val notHooked = true with get,set
+
     /// Wait until widget shown to prevent injection from taking place before the DOM is ready
     /// Inject blockly into div and save blockly workspace to private member 
     override this.onAfterAttach() = 
       // console.log("after show happened")
+      //set up blockly workspace
       this.workspace <-
         blockly.inject(
             !^"blocklyDiv",
@@ -78,14 +83,35 @@ type BlocklyWidget(notebooks:JupyterlabNotebook.Tokens.INotebookTracker) as this
         ) 
       console.log("blockly palette initialized")
     member this.Notebooks = notebooks
+    member this.onKernelExecuted = //(sender: IKernel, args: IAnyMessageArgs) =
+      PhosphorSignaling.Slot<IKernel,IIOPubMessage>( fun sender args ->
+      // Browser.Dom.console.log( "kernel message: " + args.header.msg_type.ToString() )
+      let messageType = args.header.msg_type.ToString()
+      if messageType = "execute_input" then
+        Browser.Dom.console.log( "kernel executed code, updating intellisense" )
+        Toolbox.UpdateAllIntellisense()
+      true
+      )
+
     member this.RenderCode() =        
+      //try to register for code execution messages if we haven't already
+      if this.notHooked then
+        match this.Notebooks.currentWidget with
+        | Some(widget) -> 
+          match widget.session.kernel with
+          | Some(kernel) -> 
+            let ikernel = kernel :?> IKernel
+            ikernel.iopubMessage.connect(this.onKernelExecuted, this) |> ignore
+            this.notHooked <- false;
+          | None -> ()
+        | None -> ()
+
       let code = generator.workspaceToCode( this.workspace )
       if notebooks.activeCell <> null then
         notebooks.activeCell.model.value.text <- notebooks.activeCell.model.value.text  + code //append seems better than overwrite...
         console.log("wrote to active cell:" + code)
       else
         console.log("no cell active, flushed:" + code)
-    member val workspace : Blockly.Workspace = null with get, set
     member this.GetCompletion( queryString : string ) (displayArea: HTMLElement) =
       match this.Notebooks.currentWidget with
       | Some(widget) -> 
@@ -128,9 +154,9 @@ let extension =
         //------------------------------------------------------------------------------------------------------------
         //NOTE: this **must** be wrapped in a Func, otherwise the arguments are tupled and Jupyter doesn't expect that
         //------------------------------------------------------------------------------------------------------------
-        "activate" ==>  System.Func<JupyterlabApplication.JupyterFrontEnd<JupyterlabApplication.LabShell>,JupyterlabApputils.ICommandPalette,JupyterlabNotebook.Tokens.INotebookTracker,unit>( fun app palette notebooks ->
+        "activate" ==>  System.Func<JupyterlabApplication.JupyterFrontEnd<JupyterlabApplication.LabShell>,JupyterlabApputils.ICommandPalette,JupyterlabNotebook.Tokens.INotebookTracker, unit>( fun app palette notebooks ->
             console.log("JupyterLab extension jupyterlab_blockly_extension is activated!");
-      
+            
             //Create a blockly widget and place inside main area widget
             let blocklyWidget = BlocklyWidget(notebooks)
             let widget = JupyterlabApputils.Types.MainAreaWidget.Create( createObj [ "content" ==> blocklyWidget ]) 

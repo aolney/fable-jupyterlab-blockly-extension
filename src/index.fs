@@ -33,7 +33,6 @@ type BlocklyWidget(notebooks:JupyterlabNotebook.Tokens.INotebookTracker) as this
     do
         //inject intellisense dependency into Blockly toolbox
         Toolbox.notebooks <- notebooks
-        // Toolbox.context <- context
         
         //div to hold blockly
         let div = document.createElement("div")

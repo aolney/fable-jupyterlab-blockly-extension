@@ -1550,7 +1550,7 @@ module MainAreaWidget =
         abstract toolbar: Toolbar option with get, set
         /// An optional promise for when the content is ready to be revealed.
         abstract reveal: Promise<obj option> option with get, set
-let [<Import("*","@jupyterlab/apputils/lib/sanitizer")>] defaultSanitizer: ISanitizer = jsNative
+let [<Import("defaultSanitizer","@jupyterlab/apputils/lib/sanitizer")>] defaultSanitizer: ISanitizer = jsNative
 
 /// The namespace for `ISanitizer` related interfaces.
 type [<AllowNullLiteral>] ISanitizer =

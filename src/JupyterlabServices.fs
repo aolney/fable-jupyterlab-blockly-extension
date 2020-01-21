@@ -1317,10 +1317,15 @@ module __kernel_kernel =
             abstract requestKernelInfo: unit -> Promise<__kernel_messages.KernelMessage.IInfoReplyMsg>
             /// <summary>Send a `complete_request` message.</summary>
             /// <param name="content">- The content of the request.</param>
-            abstract requestComplete: content: __kernel_messages.KernelMessage.ICompleteRequestMsg -> Promise<__kernel_messages.KernelMessage.ICompleteReplyMsg>
+            abstract requestComplete: content: __kernel_messages.KernelMessage.TypeLiteral_14 -> Promise<__kernel_messages.KernelMessage.ICompleteReplyMsg>
+            // THIS APPEARS WRONG, SEE ABOVE
+            //abstract requestComplete: content: __kernel_messages.KernelMessage.ICompleteRequestMsg -> Promise<__kernel_messages.KernelMessage.ICompleteReplyMsg>
+            
             /// <summary>Send an `inspect_request` message.</summary>
             /// <param name="content">- The content of the request.</param>
-            abstract requestInspect: content: __kernel_messages.KernelMessage.IInspectRequestMsg -> Promise<__kernel_messages.KernelMessage.IInspectReplyMsg>
+            abstract requestInspect: content: __kernel_messages.KernelMessage.TypeLiteral_15 -> Promise<__kernel_messages.KernelMessage.IInspectReplyMsg>
+            // THIS APPEARS WRONG, SEE ABOVE
+            // abstract requestInspect: content: __kernel_messages.KernelMessage.IInspectRequestMsg -> Promise<__kernel_messages.KernelMessage.IInspectReplyMsg>
             /// <summary>Send a `history_request` message.</summary>
             /// <param name="content">- The content of the request.</param>
             abstract requestHistory: content: __kernel_messages.KernelMessage.IHistoryRequestMsg -> Promise<__kernel_messages.KernelMessage.IHistoryReplyMsg>
@@ -2373,11 +2378,11 @@ module __kernel_messages =
 
         type [<AllowNullLiteral>] TypeLiteral_14 =
             abstract code: string with get, set
-            abstract cursor_pos: float with get, set
+            abstract cursor_pos: int with get, set
 
         type [<AllowNullLiteral>] TypeLiteral_15 =
             abstract code: string with get, set
-            abstract cursor_pos: float with get, set
+            abstract cursor_pos: int with get, set
             abstract detail_level: obj with get, set
 
         type [<AllowNullLiteral>] TypeLiteral_05 =

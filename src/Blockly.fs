@@ -7,7 +7,8 @@ open Browser
 open Browser.Types
 
 //amo
-type Function = Func<unit>
+type Function = Func<string,obj>
+// type Function = Func<unit>
 
 /// [<Import("*","blockly")>] appears to call index.js which calls either browser.js or node.js; 
 /// browser.js then calls core-browser, blockly, en, blocks, and javascript generator; 
@@ -243,7 +244,8 @@ module Blockly =
     let [<Import("*","blockly/javascript")>] javascript: JavaScript.IExports = jsNative //modeled on python trodi above
     let [<Import("*","blockly/python")>] python: Python.IExports = jsNative //moved from python trodi above
     let [<Import("Blocks","blockly/blocks")>] blocks: Blocks.IExports = jsNative //manual
-    // original follows
+    // original follows; these appear to all be static methods, e.g. Blockly.variableModel.compareByName
+    // creation of objects appear to use blockly, e.g. blockly.VariableModel.Create
     let [<Import("ASTNode","blockly")>] aSTNode: ASTNode.IExports = jsNative
     let [<Import("blockAnimations","blockly")>] blockAnimations: BlockAnimations.IExports = jsNative
     let [<Import("blockRendering","blockly")>] blockRendering: BlockRendering.IExports = jsNative
@@ -630,6 +632,8 @@ module Blockly =
 
     /// Fake class which should be extended to avoid inheriting static properties 
     type [<AllowNullLiteral>] Block__Class =
+        /// AMO added; seems essential in all block definitions...
+        abstract init: unit -> unit
         abstract id: string with get, set
         abstract outputConnection: Blockly.Connection with get, set
         abstract nextConnection: Blockly.Connection with get, set
@@ -798,7 +802,9 @@ module Blockly =
         /// initializer function.</summary>
         /// <param name="onchangeFn">The callback to call
         /// when the block's workspace changes.</param>
-        abstract setOnChange: onchangeFn: Block__ClassSetOnChangeOnchangeFn -> unit
+        abstract setOnChange: onchangeFn: Events.Change -> unit
+        //AMO orginal below; type DNE anywhere else
+        // abstract setOnChange: onchangeFn: Block__ClassSetOnChangeOnchangeFn -> unit
         /// <summary>Returns the named field from a block.</summary>
         /// <param name="name">The name of the field.</param>
         abstract getField: name: string -> Blockly.Field
@@ -1214,6 +1220,15 @@ module Blockly =
 
         type [<AllowNullLiteral>] ChangeStatic =
             [<Emit "new $0($1...)">] abstract Create: unit -> Change
+            /// <summary>Class for a block change event.</summary>
+            /// <param name="block">The changed block.  Null for a blank event.</param>
+            /// <param name="element">One of 'field', 'comment', 'disabled', etc.</param>
+            /// <param name="name">Name of input or field affected, or null.</param>
+            /// <param name="oldValue">Previous value of element.</param>
+            /// <param name="newValue">New value of element.</param>
+            /// AMO moved from below
+            [<Emit "new $0($1...)">] abstract Create: block: Blockly.Block * element: string * name: string * oldValue: obj * newValue: obj -> Change
+            // [<Emit "new $0($1...)">] abstract Create: block: Blockly.Block * element: string * name: string * oldValue: obj option * newValue: obj option -> Change
 
         /// Fake class which should be extended to avoid inheriting static properties 
         type [<AllowNullLiteral>] Change__Class =
@@ -1246,6 +1261,15 @@ module Blockly =
 
         type [<AllowNullLiteral>] BlockChangeStatic =
             [<Emit "new $0($1...)">] abstract Create: unit -> BlockChange
+            /// <summary>Class for a block change event.</summary>
+            /// <param name="block">The changed block.  Null for a blank event.</param>
+            /// <param name="element">One of 'field', 'comment', 'disabled', etc.</param>
+            /// <param name="name">Name of input or field affected, or null.</param>
+            /// <param name="oldValue">Previous value of element.</param>
+            /// <param name="newValue">New value of element.</param>
+            /// AMO moved from below
+            [<Emit "new $0($1...)">] abstract Create: block: Blockly.Block * element: string * name: string * oldValue: obj * newValue: obj -> BlockChange
+
 
         /// Fake class which should be extended to avoid inheriting static properties 
         type [<AllowNullLiteral>] BlockChange__Class =
@@ -3025,6 +3049,19 @@ module Blockly =
 
     type [<AllowNullLiteral>] FieldDropdownStatic =
         [<Emit "new $0($1...)">] abstract Create: unit -> FieldDropdown
+        //AMO moved from below, modifying return type
+        /// <summary>Class for an editable dropdown field.</summary>
+        /// <param name="menuGenerator">A non-empty array of
+        /// options for a dropdown list, or a function which generates these options.</param>
+        /// <param name="opt_validator">A function that is called to validate
+        /// changes to the field's value. Takes in a language-neutral dropdown
+        /// option & returns a validated language-neutral dropdown option, or null to
+        /// abort the change.</param>
+        /// <param name="opt_config">A map of options used to configure the field.
+        /// See the [field creation documentation]{</param>
+        [<Emit "new $0($1...)">] abstract Create: menuGenerator: U2<string[][], Function> * ?opt_validator: Function * ?opt_config: Object -> FieldDropdown // FieldDropdown__Class
+        // [<Emit "new $0($1...)">] abstract Create: menuGenerator: U2<ResizeArray<ResizeArray<obj option>>, Function> * ?opt_validator: Function * ?opt_config: Object -> FieldDropdown // FieldDropdown__Class
+
 
     /// Fake class which should be extended to avoid inheriting static properties 
     type [<AllowNullLiteral>] FieldDropdown__Class =
@@ -3047,7 +3084,9 @@ module Blockly =
         /// <summary>Return a list of the options for this dropdown.</summary>
         /// <param name="opt_useCache">For dynamic options, whether or not to use the
         /// cached options or to re-generate them.</param>
-        abstract getOptions: ?opt_useCache: bool -> ResizeArray<ResizeArray<obj option>>
+        abstract getOptions: ?opt_useCache: bool -> ResizeArray<ResizeArray<string>>
+        // original below
+        // abstract getOptions: ?opt_useCache: bool -> ResizeArray<ResizeArray<obj option>>
         /// Ensure that the input value is a valid language-neutral option.
         abstract doClassValidation_: ?opt_newValue: obj -> string
         /// <summary>Update the value of this dropdown field.</summary>
@@ -3382,6 +3421,16 @@ module Blockly =
 
     type [<AllowNullLiteral>] FieldTextInputStatic =
         [<Emit "new $0($1...)">] abstract Create: unit -> FieldTextInput
+        //AMO added overload
+        /// <summary>Class for an editable text field.</summary>
+        /// <param name="opt_value">The initial value of the field. Should cast to a
+        /// string. Defaults to an empty string if null or undefined.</param>
+        /// <param name="opt_validator">A function that is called to validate
+        /// changes to the field's value. Takes in a string & returns a validated
+        /// string, or null to abort the change.</param>
+        /// <param name="opt_config">A map of options used to configure the field.
+        /// See the [field creation documentation]{</param>
+        [<Emit "new $0($1...)">] abstract Create: ?opt_value: string * ?opt_validator: Function * ?opt_config: Object -> FieldTextInput
 
     /// Fake class which should be extended to avoid inheriting static properties 
     type [<AllowNullLiteral>] FieldTextInput__Class =
@@ -3458,6 +3507,7 @@ module Blockly =
         /// string, or null to abort the change.</param>
         /// <param name="opt_config">A map of options used to configure the field.
         /// See the [field creation documentation]{</param>
+        /// AMO: copied this up to FieldTextInputStatic because it wasn't working here. 
         [<Emit "new $0($1...)">] abstract Create: ?opt_value: string * ?opt_validator: Function * ?opt_config: Object -> FieldTextInput__Class
 
     module FieldTextInput =
@@ -3481,6 +3531,21 @@ module Blockly =
 
     type [<AllowNullLiteral>] FieldVariableStatic =
         [<Emit "new $0($1...)">] abstract Create: unit -> FieldVariable
+        // AMO copied from below, modifying return type
+        /// <summary>Class for a variable's dropdown field.</summary>
+        /// <param name="varName">The default name for the variable.  If null,
+        /// a unique variable name will be generated.</param>
+        /// <param name="opt_validator">A function that is called to validate
+        /// changes to the field's value. Takes in a variable ID  & returns a
+        /// validated variable ID, or null to abort the change.</param>
+        /// <param name="opt_variableTypes">A list of the types of variables
+        /// to include in the dropdown.</param>
+        /// <param name="opt_defaultType">The type of variable to create if this
+        /// field's value is not explicitly set.  Defaults to ''.</param>
+        /// <param name="opt_config">A map of options used to configure the field.
+        /// See the [field creation documentation]{</param>
+        [<Emit "new $0($1...)">] abstract Create: varName: string * ?opt_validator: Function * ?opt_variableTypes: ResizeArray<string> * ?opt_defaultType: string * ?opt_config: Object -> FieldVariable
+
 
     /// Fake class which should be extended to avoid inheriting static properties 
     type [<AllowNullLiteral>] FieldVariable__Class =
@@ -3559,6 +3624,7 @@ module Blockly =
         /// field's value is not explicitly set.  Defaults to ''.</param>
         /// <param name="opt_config">A map of options used to configure the field.
         /// See the [field creation documentation]{</param>
+        /// AMO copied up to FieldVariableStatic because it wasn't working here
         [<Emit "new $0($1...)">] abstract Create: varName: string * ?opt_validator: Function * ?opt_variableTypes: ResizeArray<string> * ?opt_defaultType: string * ?opt_config: Object -> FieldVariable__Class
 
     module FieldVariable =
@@ -4970,6 +5036,7 @@ module Blockly =
         [<Emit "new $0($1...)">] abstract Create: workspace: Blockly.Workspace -> Trashcan__Class
 
     module Utils =
+        //TODO: need dotted imports for all of these? See 'utils.xml' below.
         let [<Import("_string","blockly")>] _string: _string.IExports = jsNative
         let [<Import("aria","blockly")>] aria: Aria.IExports = jsNative
         let [<Import("colour","blockly")>] colour: Colour.IExports = jsNative
@@ -4982,7 +5049,7 @@ module Blockly =
         let [<Import("style","blockly")>] style: Style.IExports = jsNative
         let [<Import("svgPaths","blockly")>] svgPaths: SvgPaths.IExports = jsNative
         let [<Import("uiMenu","blockly")>] uiMenu: UiMenu.IExports = jsNative
-        let [<Import("xml","blockly")>] xml: Xml.IExports = jsNative
+        let [<Import("utils.xml","blockly")>] xml: Xml.IExports = jsNative
 
         type [<AllowNullLiteral>] IExports =
             /// <summary>Don't do anything for this event, just halt propagation.</summary>

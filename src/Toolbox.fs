@@ -40,6 +40,17 @@ let thisBlock : Blockly.Block = jsNative
 [<Emit("this")>]
 let thisObj : obj = jsNative
 
+//Prevent Blockly from prepending variable definitions for us
+blockly?Python?finish <- id
+
+let encodeWorkspace() =
+  let xml = Blockly.xml.workspaceToDom( blockly.getMainWorkspace() );
+  let xmlText = Blockly.xml.domToText( xml )
+  xmlText
+
+let decodeWorkspace( xmlText ) =
+  let xml = Blockly.xml.textToDom( xmlText )
+  Blockly.xml.domToWorkspace( xml, blockly.getMainWorkspace() ) |> ignore
 
 /// Create a Blockly/Python import block
 blockly?Blocks.["import"] <- createObj [
@@ -286,10 +297,18 @@ let getIntellisenseMemberOptions(memberSelectionFunction : IntellisenseEntry -> 
   | true, iv when iv.VariableEntry.Info = "UNDEFINED" ->  [| [| "!Not defined until you execute code."; "!Not defined until you execute code." |] |]
   | _ -> [| [| "!No properties available."; "!No properties available." |] |]
 
-let getIntellisenseTooltip( varName : string ) =
+let getIntellisenseVarTooltip( varName : string ) =
   match  varName |> intellisenseLookup.TryGetValue with
   | true, iv -> 
     iv.VariableEntry.Info
+  | false, _ -> "!Not defined until you execute code."
+
+let getIntellisenseMemberTooltip( varName : string ) (memberName : string )=
+  match  varName |> intellisenseLookup.TryGetValue with
+  | true, iv -> 
+    match iv.ChildEntries |> Array.tryFind( fun c -> c.Name = memberName ) with
+    | Some(child) -> child.Info
+    | None -> "!Not defined until you execute code."
   | false, _ -> "!Not defined until you execute code."
 
 /// Update all the blocks that use intellisense. Called after the kernel executes a cell so our intellisense in Blockly is updated.
@@ -298,11 +317,7 @@ let UpdateAllIntellisense() =
   let blocks = workspace.getBlocksByType("varGetProperty", false)
   blocks.AddRange( workspace.getBlocksByType("varDoMethod", false) )
   for b in blocks do
-    let intellisenseUpdateEvent = Blockly.events.Change.Create(b, "field", "VAR", 0, 1) 
-    intellisenseUpdateEvent.group <- "INTELLISENSE"
-    Blockly.events.fire( intellisenseUpdateEvent :?> Blockly.Events.Abstract )
-
-    // b?updateIntellisense(b,None) //doesn't work after we added memberSelectionFunction; fire event instead
+    b?updateIntellisense(b,None, requestAndStubOptions b) 
 
 /// Remove a field from a block safely, even if it doesn't exist
 let SafeRemoveField( block:Blockly.Block ) ( fieldName : string ) ( inputName : string )=
@@ -319,10 +334,13 @@ let makeMemberIntellisenseBlock (blockName:string) (preposition:string) (verb:st
     //Get the user-facing name of the selected variable; on creation, defaults to created name
     "varSelectionUserName" ==> fun (thisBlockClosure : Blockly.Block) (selectedOption : string option)  ->
       let fieldVariable = thisBlockClosure.getField("VAR") :?> Blockly.FieldVariable
+      // fieldVariable.initModel() // kind of accesses user-selected variable name but also creates a variable with the default name
+      // TODO: below is working but has side effects for intellisense
+      // let lastVar = thisBlockClosure.workspace.getAllVariables() |> Seq.last 
       let selectionUserName =
         match selectedOption with 
         | Some( option ) -> fieldVariable.getOptions() |> Seq.find( fun o -> o.[1] = option ) |> Seq.head
-        | None -> fieldVariable.getText() //on creation
+        | None -> fieldVariable.getText() //if fieldVariable.getText() = "" then lastVar.name else fieldVariable.getText() //on creation
       selectionUserName
 
     //Using currently selected var, update intellisense
@@ -338,7 +356,19 @@ let makeMemberIntellisenseBlock (blockName:string) (preposition:string) (verb:st
       let selectionUserName = thisBlockClosure?varSelectionUserName(thisBlockClosure,selectedOption)
       let options = selectionUserName |> optionsFunction 
       // input.appendField( !^(blockly.FieldDropdown.Create( requestAndStubOptions thisBlockClosure selectionUserName ) :> Blockly.Field), "MEMBER"  ) |> ignore 
-      input.appendField( !^(blockly.FieldDropdown.Create( options ) :> Blockly.Field), "MEMBER"  ) |> ignore 
+      
+      //use intellisense to populate the member options, also use validator to update the tooltip for the current member option
+      input.appendField( !^(blockly.FieldDropdown.Create( options, System.Func<string,obj>( fun newSelection ->
+        // Within validator, "this" refers to FieldVariable not block.
+        let (thisFieldDropdown : Blockly.FieldDropdown) = !!thisObj
+        thisFieldDropdown.setTooltip( !^( getIntellisenseMemberTooltip selectionUserName newSelection ) )
+        //Since we are leveraging the validator, we return the selected value without modification
+        newSelection |> unbox)
+       ) :> Blockly.Field), "MEMBER"  ) |> ignore 
+
+       //set up the initial member tooltip
+      let memberField = thisBlockClosure.getField("MEMBER")
+      memberField.setTooltip( !^( getIntellisenseMemberTooltip selectionUserName (memberField.getText()) ) )
 
       //add more fields if arguments are needed. Current strategy is to make those their own block rather than adding mutators to this block
       if hasArgs then
@@ -398,20 +428,23 @@ let makeMemberIntellisenseBlock (blockName:string) (preposition:string) (verb:st
 
         // update tooltip
         let varName = thisBlock?varSelectionUserName(thisBlock, None)
-        thisBlock.setTooltip !^( varName |> getIntellisenseTooltip )
+        thisBlock.setTooltip !^( varName |> getIntellisenseVarTooltip )
         ()
     ]
   /// Generate Python intellisense member block conversion code
   blockly?Python.[blockName] <- fun (block : Blockly.Block) -> 
     let varName = blockly?Python?variableDB_?getName( block.getFieldValue("VAR").Value |> string, blockly?Variables?NAME_TYPE);
-    let propertyName = block.getFieldValue("MEMBER").Value |> string
+    let memberName = block.getFieldValue("MEMBER").Value |> string
     // let x = blockly?Python?valueToCode( block, "VAR", blockly?Python?ORDER_ATOMIC )
     let code =  
       //All of the "not defined" option messages start with "!"
-      if propertyName.StartsWith("!") then
+      if memberName.StartsWith("!") then
         ""
-      else 
-        varName + "." + propertyName
+      else if hasArgs then
+        let (args : string) = blockly?Python?valueToCode(block, "INPUT", blockly?Python?ORDER_MEMBER) 
+        varName + "." + memberName + "(" +  args.Trim([| '['; ']' |]) + ")"
+      else
+        varName + "." + memberName
     [| code; blockly?Python?ORDER_FUNCTION_CALL |]
 
 //Intellisense variable get property block

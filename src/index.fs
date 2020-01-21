@@ -48,13 +48,23 @@ type BlocklyWidget(notebooks:JupyterlabNotebook.Tokens.INotebookTracker) as this
         )
         this.node.appendChild(blocksToCodeButton) |> ignore
 
+        //button to reverse xml to blocks
+        let codeToBlocksButton = document.createElement("button")
+        codeToBlocksButton.innerText <- "Code to Blocks"
+        codeToBlocksButton.addEventListener("click", fun _ ->
+          this.RenderBlocks()
+        )
+        this.node.appendChild(codeToBlocksButton) |> ignore
+
         //UI to test introspection/code completion
         let displayArea = document.createElement("p")
         let button = document.createElement("button")
-        button.innerText <- "Test"
+        button.innerText <- "Report Bug"
         button.addEventListener("click", fun _ ->
-          this.GetCompletion "test" displayArea 
-          this.GetTooltip "input" displayArea
+          let win = Browser.Dom.window.``open``("https://github.com/aolney/fable-jupyterlab-blockly-extension/issues", "_blank");
+          win.focus()
+          // this.GetCompletion "test" displayArea 
+          // this.GetTooltip "input" displayArea
           ()
         )
         this.node.appendChild(button) |> ignore
@@ -62,11 +72,33 @@ type BlocklyWidget(notebooks:JupyterlabNotebook.Tokens.INotebookTracker) as this
 
     member val workspace : Blockly.Workspace = null with get, set
     member val notHooked = true with get,set
+    member this.Notebooks = notebooks
+    member this.onKernelExecuted = //(sender: IKernel, args: IAnyMessageArgs) =
+      PhosphorSignaling.Slot<IKernel,IIOPubMessage>( fun sender args ->
+      // Browser.Dom.console.log( "kernel message: " + args.header.msg_type.ToString() )
+      let messageType = args.header.msg_type.ToString()
+      if messageType = "execute_input" then
+        Browser.Dom.console.log( "kernel executed code, updating intellisense" )
+        Toolbox.UpdateAllIntellisense()
+      true
+      )
 
     /// Wait until widget shown to prevent injection from taking place before the DOM is ready
     /// Inject blockly into div and save blockly workspace to private member 
     override this.onAfterAttach() = 
-      // console.log("after show happened")
+      //try to register for code execution messages if we haven't already
+      if this.notHooked then
+        match this.Notebooks.currentWidget with
+        | Some(widget) -> 
+          match widget.session.kernel with
+          | Some(kernel) -> 
+            let ikernel = kernel :?> IKernel
+            ikernel.iopubMessage.connect(this.onKernelExecuted, this) |> ignore
+            console.log("Listening for kernel messages")
+            this.notHooked <- false;
+          | None -> ()
+        | None -> ()
+
       //set up blockly workspace
       this.workspace <-
         blockly.inject(
@@ -81,36 +113,22 @@ type BlocklyWidget(notebooks:JupyterlabNotebook.Tokens.INotebookTracker) as this
             // ] :?> Object
         ) 
       console.log("blockly palette initialized")
-    member this.Notebooks = notebooks
-    member this.onKernelExecuted = //(sender: IKernel, args: IAnyMessageArgs) =
-      PhosphorSignaling.Slot<IKernel,IIOPubMessage>( fun sender args ->
-      // Browser.Dom.console.log( "kernel message: " + args.header.msg_type.ToString() )
-      let messageType = args.header.msg_type.ToString()
-      if messageType = "execute_input" then
-        Browser.Dom.console.log( "kernel executed code, updating intellisense" )
-        Toolbox.UpdateAllIntellisense()
-      true
-      )
+
+    member this.RenderBlocks() =
+      if notebooks.activeCell <> null then
+        //xml is always the last line of cell
+        let xmlStringComment = notebooks.activeCell.model.value.text.Split('\n') |> Array.last
+        Toolbox.decodeWorkspace( xmlStringComment.TrimStart( [|'#'|] ) )
+      else
+        console.log("unable to decode blocks")
 
     member this.RenderCode() =        
-      //try to register for code execution messages if we haven't already
-      if this.notHooked then
-        match this.Notebooks.currentWidget with
-        | Some(widget) -> 
-          match widget.session.kernel with
-          | Some(kernel) -> 
-            let ikernel = kernel :?> IKernel
-            ikernel.iopubMessage.connect(this.onKernelExecuted, this) |> ignore
-            this.notHooked <- false;
-          | None -> ()
-        | None -> ()
-
       let code = generator.workspaceToCode( this.workspace )
       if notebooks.activeCell <> null then
-        notebooks.activeCell.model.value.text <- notebooks.activeCell.model.value.text  + code //append seems better than overwrite...
-        console.log("wrote to active cell:" + code)
+        notebooks.activeCell.model.value.text <- notebooks.activeCell.model.value.text  + code + "\n#" + Toolbox.encodeWorkspace() //append seems better than overwrite...
+        console.log("wrote to active cell:\n" + code + "\n")
       else
-        console.log("no cell active, flushed:" + code)
+        console.log("no cell active, flushed:\n" + code + "\n")
     member this.GetCompletion( queryString : string ) (displayArea: HTMLElement) =
       match this.Notebooks.currentWidget with
       | Some(widget) -> 

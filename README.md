@@ -2,26 +2,23 @@
 
 A [JupyterLab](https://jupyterlab.readthedocs.io/en/stable/) extension implementing a Blockly palette with [Fable](https://fable.io/) tooling.
 
-Part of this involved extensive development of foreign interfaces using `ts2fable`. Some of these are strange/awkward, but they work. 
-I might release them as a nuget package once they are cleaned up.
-
-
-## Prerequisites
-
-* [JupyterLab](https://jupyterlab.readthedocs.io/en/stable/getting_started/installation.html)
-* [Fable](https://fable.io/)
-* An F# editor like Visual Studio Code with [Ionide](http://ionide.io/) 
-* Chrome
 
 ## Installation
 
 ```bash
-jupyter labextension install fable-jupyterlab-extension
+jupyter labextension install fable-jupyterlab-blockly-extension
 ```
 
 ## Development
 
 This is based on my personal preferences. For more options, [see the extension development guide](https://jupyterlab.readthedocs.io/en/stable/developer/extension_dev.html#developer-extensions).
+
+### Prerequisites
+
+* [JupyterLab](https://jupyterlab.readthedocs.io/en/stable/getting_started/installation.html)
+* [Fable](https://fable.io/)
+* An F# editor like Visual Studio Code with [Ionide](http://ionide.io/) 
+* Chrome
 
 ### Initial install and after library adds
 
@@ -75,6 +72,8 @@ Last but not least, in the `.fsproj` file you can find a new node: `	<Import Pro
 ### Imports
 
 Because Jupyter uses Typescript, we can use [ts2fable](https://github.com/fable-compiler/ts2fable) to generate strongly typed imports of Jupyter's JS packages. Unfortunately these are a bit huge and the conversion is messy. 
+I might release them as a nuget package once they are cleaned up.
 `ts2fable-raw-output` has the initial conversion which is cleaned up enough to compile i nthe `src` directory. 
+
 
 

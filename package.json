@@ -8,9 +8,9 @@
     "jupyterlab-extension",
     "blockly"
   ],
-  "homepage": "https://github.com/my_name/myextension",
+  "homepage": "https://github.com/aolney/fable-jupyterlab-blockly-extension",
   "bugs": {
-    "url": "https://github.com/my_name/myextension/issues"
+    "url": "https://github.com/aolney/fable-jupyterlab-blockly-extension/issues"
   },
   "license": "Apache-2.0",
   "author": "Andrew M. Olney",
@@ -22,7 +22,7 @@
   "style": "style/index.css",
   "repository": {
     "type": "git",
-    "url": "https://github.com/my_name/myextension.git"
+    "url": "https://github.com/aolney/fable-jupyterlab-blockly-extension.git"
   },
   "scripts": {
     "build": "fable-splitter src -o lib",

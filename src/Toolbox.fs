@@ -74,7 +74,7 @@ blockly?Python.["import"] <- fun (block : Blockly.Block) ->
   code
 
 /// A template for single argument function block creation (e.g. int(X)), including the code generator.
-let makeSingleArgFunctionBlock blockName (label:string) (outputType:string) (tooltip:string) (helpurl:string) (functionStr:string) =
+let makeSingleArgFunctionBlock (blockName:string) (label:string) (outputType:string) (tooltip:string) (helpurl:string) (functionStr:string) =
   blockly?Blocks.[blockName] <- createObj [
     "init" ==> fun () -> 
       Browser.Dom.console.log( blockName + " init")
@@ -92,6 +92,25 @@ let makeSingleArgFunctionBlock blockName (label:string) (outputType:string) (too
     let x = blockly?Python?valueToCode( block, "x", blockly?Python?ORDER_ATOMIC )
     let code =  functionStr + "(" + x + ")"
     [| code; blockly?Python?ORDER_FUNCTION_CALL |]
+
+// ALREADY EXISTS
+// sort: TODO only accept lists, setCheck("Array")
+// makeSingleArgFunctionBlock 
+//   "sortBlock"
+//   "sort"
+//   "Array"
+//   "Sort a list."
+//   "https://python-reference.readthedocs.io/en/latest/docs/list/sort.html"
+//   "sort"
+
+// set: TODO only accept lists, setCheck("Array")
+makeSingleArgFunctionBlock 
+  "setBlock"
+  "set"
+  "Array"
+  "Make a set with unique members of a list."
+  "https://docs.python.org/2/library/sets.html"
+  "set"
 
 // Conversion blocks, e.g. str()
 makeSingleArgFunctionBlock 
@@ -336,7 +355,7 @@ let SafeRemoveField( block:Blockly.Block ) ( fieldName : string ) ( inputName : 
   | _, null ->  Browser.Dom.console.log( "error removing (" + fieldName + ") from block; input (" + inputName + ") does not exist" )
   | _,input -> input.removeField( fieldName )
 
-
+// TODO: CHANGE OUTPUT CONNECTOR DEPENDING ON INTELLISENSE: IF FUNCTION DOESN'T HAVE AN OUTPUT, REMOVE CONNECTOR
 /// Make a block that has an intellisense-populated member dropdown. The member type is property or method, defined by the filter function
 /// Note the "blockName" given to these is hardcoded elsewhere, e.g. the toolbox and intellisense update functions
 let makeMemberIntellisenseBlock (blockName:string) (preposition:string) (verb:string) (memberSelectionFunction: IntellisenseEntry -> bool ) ( hasArgs : bool )= 
@@ -815,6 +834,7 @@ let toolbox =
         </value>
       </block>
       <block type="lists_sort"></block>
+      <block type="setBlock"></block>
     </category>
     <category name="COLOUR" colour="%{BKY_COLOUR_HUE}">
       <block type="colour_picker"></block>

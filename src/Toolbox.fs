@@ -62,6 +62,7 @@ blockly?Blocks.["import"] <- createObj [
       .appendField( !^"as")
       .appendField( !^(blockly.FieldVariable.Create("variable name") :?> Blockly.Field), "libraryAlias"  ) |> ignore
     thisBlock.setNextStatement true
+    thisBlock.setPreviousStatement true
     thisBlock.setColour !^230.0
     thisBlock.setTooltip !^"Import a python package to access functions in that package"
     thisBlock.setHelpUrl !^"https://docs.python.org/3/reference/import.html"
@@ -355,6 +356,7 @@ let SafeRemoveField( block:Blockly.Block ) ( fieldName : string ) ( inputName : 
   | _, null ->  Browser.Dom.console.log( "error removing (" + fieldName + ") from block; input (" + inputName + ") does not exist" )
   | _,input -> input.removeField( fieldName )
 
+// TODO: MAKE BLOCK THAT ALLOWS USER TO MAKE AN ASSIGNMENT TO A PROPERTY
 // TODO: CHANGE OUTPUT CONNECTOR DEPENDING ON INTELLISENSE: IF FUNCTION DOESN'T HAVE AN OUTPUT, REMOVE CONNECTOR
 /// Make a block that has an intellisense-populated member dropdown. The member type is property or method, defined by the filter function
 /// Note the "blockName" given to these is hardcoded elsewhere, e.g. the toolbox and intellisense update functions

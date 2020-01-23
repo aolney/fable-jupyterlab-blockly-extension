@@ -36,7 +36,7 @@ type BlocklyWidget(notebooks:JupyterlabNotebook.Tokens.INotebookTracker) as this
         
         //div to hold blockly
         let div = document.createElement("div")
-        div.setAttribute("style", "height: 650px; width: 800px;") //TODO resizable: https://developers.google.com/blockly/guides/configure/web/resizable
+        div.setAttribute("style", "height: 480px; width: 600px;") //TODO resizable: https://developers.google.com/blockly/guides/configure/web/resizable
         div.id <- "blocklyDiv" //for debug and to refer to during injection
         this.node.appendChild(div) |> ignore
 

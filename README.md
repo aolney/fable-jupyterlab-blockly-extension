@@ -6,7 +6,13 @@ A [JupyterLab](https://jupyterlab.readthedocs.io/en/stable/) extension implement
 ## Installation
 
 ```bash
-jupyter labextensio install @aolney/fable-jupyterlab-blockly-extension
+jupyter labextension install @aolney/fable-jupyterlab-blockly-extension
+```
+
+## Updating to latest version
+
+```bash
+jupyter labextension update @aolney/fable-jupyterlab-blockly-extension
 ```
 
 ## Development

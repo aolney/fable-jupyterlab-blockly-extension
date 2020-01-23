@@ -220,43 +220,53 @@ let RequestIntellisenseVariable(block : Blockly.Block) ( parentName : string ) =
   promise {
     let! parentInspection = GetKernalInspection( parentName )
     let parent = { Name=parentName;  Info=parentInspection; isFunction=isFunction(parentInspection) }
-    // V2 store the name/docstring pair. This is always overwritten.
+    // V2 store the name/docstring pair. This is always overwritten(*Updating*).
     // if not <| nameDocMap.ContainsKey( parentName ) then nameDocMap.Add(parentName,parentInspection) else nameDocMap.[parentName] <- parentInspection
 
     // V2 only search for completions if the docstring has not previously been stored
     // if not <| docIntellisenseMap.ContainsKey( parentInspection ) then
       // promise {  //if promise ce absent here, then preceding conditional is not transpiled   
-    let! completions = GetKernelCompletion( parentName + "." ) //all completions that follow "name."
-    let! inspections = 
-      // if not <| parent.isInstance then //No caching; see above
-      completions
-      |> Array.map( fun completion ->  GetKernalInspection(parentName + "." + completion) ) //all introspections of name.completion
-      |> Promise.Parallel
-      // else
-      //   Promise.lift [||] //No caching; see above
-    let children = 
-        Array.zip completions inspections 
-        |> Array.map( fun (completion,inspection) -> 
-          {Name=completion; Info=inspection; isFunction=isFunction(inspection) }
-        ) 
-    let intellisenseVariable = { VariableEntry=parent; ChildEntries=children}
-    // Store so we can synchronously find results later; if we have seen this var before, overwrite.
-    if intellisenseLookup.ContainsKey( parentName ) then
-      intellisenseLookup.[parentName] <- intellisenseVariable
+
+    // V3 only update completions if cached parent type has changed or has no children OR if there is nothing in the cache.
+    let shouldGetChildren =
+      match intellisenseLookup.TryGetValue(parent.Name) with
+      | true, cached -> if cached.VariableEntry.Info <> parent.Info || cached.ChildEntries.Length = 0 then true else false
+      | false, _ -> true
+
+    if shouldGetChildren then
+      let! completions = GetKernelCompletion( parentName + "." ) //all completions that follow "name."
+      let! inspections = 
+        // if not <| parent.isInstance then //No caching; see above
+        completions
+        |> Array.map( fun completion ->  GetKernalInspection(parentName + "." + completion) ) //all introspections of name.completion
+        |> Promise.Parallel
+        // else
+        //   Promise.lift [||] //No caching; see above
+      let children = 
+          Array.zip completions inspections 
+          |> Array.map( fun (completion,inspection) -> 
+            {Name=completion; Info=inspection; isFunction=isFunction(inspection) }
+          ) 
+      let intellisenseVariable = { VariableEntry=parent; ChildEntries=children}
+      // Store so we can synchronously find results later; if we have seen this var before, overwrite.
+      if intellisenseLookup.ContainsKey( parentName ) then
+        intellisenseLookup.[parentName] <- intellisenseVariable
+      else
+        intellisenseLookup.Add( parentName, intellisenseVariable)
+
+      // V2 - never overwritten
+      // if not <| docIntellisenseMap.ContainsKey( parentInspection ) then
+      // docIntellisenseMap.Add( parentInspection, intellisenseVariable)
+        // } |> Promise.start
     else
-      intellisenseLookup.Add( parentName, intellisenseVariable)
+      Browser.Dom.console.log("Not refreshing intellisense for " + parent.Name)
 
     //Call update event  
     let intellisenseUpdateEvent = Blockly.events.Change.Create(block, "field", "VAR", 0, 1) 
     intellisenseUpdateEvent.group <- "INTELLISENSE"
     Blockly.events.fire( intellisenseUpdateEvent :?> Blockly.Events.Abstract )
 
-    // V2 - never overwritten
-    // if not <| docIntellisenseMap.ContainsKey( parentInspection ) then
-    // docIntellisenseMap.Add( parentInspection, intellisenseVariable)
-      // } |> Promise.start
-  } |> Promise.start
-
+    } |> Promise.start
 
 // let GetIntellisenseVariable( name : string ) = 
 //   // Now do the lookups here. We expect to fail on first call because the promise has not resolved. We may also lag "truth" if variable type changes.
@@ -284,7 +294,7 @@ let requestAndStubOptions (block : Blockly.Block) ( varName : string ) =
     varName |> RequestIntellisenseVariable block
   //return an option stub while we wait
   if varName <> "" && varName |> intellisenseLookup.ContainsKey then
-      [| [| "Waiting for kernel to respond with options."; "Waiting for kernel to respond with options." |] |]
+      [| [| "!Waiting for kernel to respond with options."; "!Waiting for kernel to respond with options." |] |]
     else
       [| [| "!Not defined until you execute code."; "!Not defined until you execute code." |] |]
 
@@ -331,6 +341,7 @@ let SafeRemoveField( block:Blockly.Block ) ( fieldName : string ) ( inputName : 
 /// Note the "blockName" given to these is hardcoded elsewhere, e.g. the toolbox and intellisense update functions
 let makeMemberIntellisenseBlock (blockName:string) (preposition:string) (verb:string) (memberSelectionFunction: IntellisenseEntry -> bool ) ( hasArgs : bool )= 
   blockly?Blocks.[blockName] <- createObj [
+
     //Get the user-facing name of the selected variable; on creation, defaults to created name
     "varSelectionUserName" ==> fun (thisBlockClosure : Blockly.Block) (selectedOption : string option)  ->
       let fieldVariable = thisBlockClosure.getField("VAR") :?> Blockly.FieldVariable
@@ -340,33 +351,41 @@ let makeMemberIntellisenseBlock (blockName:string) (preposition:string) (verb:st
       let selectionUserName =
         match selectedOption with 
         | Some( option ) -> fieldVariable.getOptions() |> Seq.find( fun o -> o.[1] = option ) |> Seq.head
-        | None -> fieldVariable.getText() //if fieldVariable.getText() = "" then lastVar.name else fieldVariable.getText() //on creation
+        | None -> fieldVariable.getText() //on creation is empty string //if fieldVariable.getText() = "" then lastVar.name else fieldVariable.getText() //on creation
       selectionUserName
+
+    //back up the current member selection so it is not lost every time a cell is run
+    "selectedMember" ==> null
 
     //Using currently selected var, update intellisense
     "updateIntellisense" ==> fun (thisBlockClosure : Blockly.Block) (selectedOption : string option) (optionsFunction : string -> string[][]) ->
-      // let fieldVariable = thisBlockClosure.getField("VAR") :?> Blockly.FieldVariable
-      // let selectionUserName =
-      //   match selectedOption with 
-      //   | Some( option ) -> fieldVariable.getOptions() |> Seq.find( fun o -> o.[1] = option ) |> Seq.head
-      //   | None -> fieldVariable.getText() //on creation
+      //back up the current member selection so it is not lost every time a cell is run; ignore status selections that start with !
+      //let memberField = thisBlockClosure.getField("MEMBER")
+      //thisBlock?selectedMember <- if memberField <> null && not <| memberField.getText().StartsWith("!") then memberField.getText() else null
+
       let input = thisBlockClosure.getInput("INPUT")
       SafeRemoveField thisBlockClosure "MEMBER" "INPUT"
       SafeRemoveField thisBlockClosure "USING" "INPUT"
       let selectionUserName = thisBlockClosure?varSelectionUserName(thisBlockClosure,selectedOption)
       let options = selectionUserName |> optionsFunction 
-      // input.appendField( !^(blockly.FieldDropdown.Create( requestAndStubOptions thisBlockClosure selectionUserName ) :> Blockly.Field), "MEMBER"  ) |> ignore 
-      
-      //use intellisense to populate the member options, also use validator to update the tooltip for the current member option
+
+      //use intellisense to populate the member options, also use validator so that when we select a new member from the dropdown, tooltip is updated
       input.appendField( !^(blockly.FieldDropdown.Create( options, System.Func<string,obj>( fun newSelection ->
         // Within validator, "this" refers to FieldVariable not block.
         let (thisFieldDropdown : Blockly.FieldDropdown) = !!thisObj
         thisFieldDropdown.setTooltip( !^( getIntellisenseMemberTooltip selectionUserName newSelection ) )
+        //back up the current member selection so it is not lost every time a cell is run; ignore status selections that start with !
+        thisBlockClosure?selectedMember <- 
+          match newSelection.StartsWith("!"),thisBlock?selectedMember with
+          | _, null -> newSelection 
+          | true, _ -> thisBlock?selectedMember
+          | false,_ -> newSelection
+
         //Since we are leveraging the validator, we return the selected value without modification
         newSelection |> unbox)
        ) :> Blockly.Field), "MEMBER"  ) |> ignore 
 
-       //set up the initial member tooltip
+      //set up the initial member tooltip
       let memberField = thisBlockClosure.getField("MEMBER")
       memberField.setTooltip( !^( getIntellisenseMemberTooltip selectionUserName (memberField.getText()) ) )
 
@@ -385,17 +404,12 @@ let makeMemberIntellisenseBlock (blockName:string) (preposition:string) (verb:st
       input
         .appendField(!^preposition) 
 
-        //Use the validator called on variable selection to change the options property dropdown so that we get correct options when variable changes
+        //Use the validator called on variable selection to change the member dropdown so that we get correct members when variable changes
         .appendField( !^(blockly.FieldVariable.Create("variable name", System.Func<string,obj>( fun newSelection ->
           // Within validator, "this" refers to FieldVariable not block.
           let (thisFieldVariable : Blockly.FieldVariable) = !!thisObj
-          
           // update the options FieldDropdown by recreating it with the newly selected variable name
           thisBlockClosure?updateIntellisense( thisBlockClosure, Some(newSelection), requestAndStubOptions thisBlockClosure  )
-          // let input = thisBlockClosure.getInput("INPUT")
-          // input.removeField("MEMBER")
-          // input.appendField( !^(blockly.FieldDropdown.Create( thisBlockClosure?varSelectionUserName(thisBlockClosure, Some(newSelection))  |> requestAndStubOptions thisBlockClosure ) :> Blockly.Field), "MEMBER"  ) |> ignore 
-
           //Since we are leveraging the validator, we return the selected value without modification
           newSelection |> unbox)
          ) :?> Blockly.Field), "VAR"  )
@@ -425,6 +439,10 @@ let makeMemberIntellisenseBlock (blockName:string) (preposition:string) (verb:st
         
         // update the options FieldDropdown by recreating it with fresh intellisense
         thisBlock?updateIntellisense( thisBlock, None, getIntellisenseMemberOptions memberSelectionFunction ) //adds the member fields, triggering intellisense
+
+        //restore previous member selection if possible
+        let memberField = thisBlock.getField("MEMBER")
+        memberField.setValue( thisBlock?selectedMember)
 
         // update tooltip
         let varName = thisBlock?varSelectionUserName(thisBlock, None)

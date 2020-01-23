@@ -2766,7 +2766,8 @@ module Blockly =
         /// Subclasses should override doClassValidation_ and doValueUpdate_ rather
         /// than this method.</summary>
         /// <param name="newValue">New value.</param>
-        abstract setValue: newValue: obj option -> unit
+        abstract setValue: newValue: obj -> unit
+        // abstract setValue: newValue: obj option -> unit
         /// Get the current value of the field.
         abstract getValue: unit -> obj option
         /// Used to validate a value. Returns input by default. Can be overridden by

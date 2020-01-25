@@ -10,6 +10,7 @@ open Browser.Dom
 open Blockly
 open JupyterlabServices.__kernel_messages.KernelMessage
 open JupyterlabServices.__kernel_kernel.Kernel
+open JupyterlabNotebook.Tokens
 
 //tricky here: if we try to make collection of requires, F# complains they are different types unless we specify obj type
 let mutable requires: obj array =
@@ -28,7 +29,7 @@ type Widget() =
         abstract onResize: PhosphorWidgets.Widget.ResizeMessage -> unit
     end
 
-/// Might not be strictly necessary to wrap blockly in a widget
+/// Wrapping blockly in a widget helps with resizing and other GUI events that affect blockly
 type BlocklyWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker) as this =
     class
         inherit Widget()
@@ -57,7 +58,7 @@ type BlocklyWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker) as thi
             //button to reverse xml to blocks
             let codeToBlocksButton = document.createElement ("button")
             codeToBlocksButton.innerText <- "Code to Blocks"
-            codeToBlocksButton.addEventListener ("click", (fun _ -> this.RenderBlocks()))
+            codeToBlocksButton.addEventListener ("click", (fun _ -> this.RenderBlocks() ))
             buttonDiv.appendChild( codeToBlocksButton) |> ignore
 
             //button for bug reports
@@ -73,6 +74,17 @@ type BlocklyWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker) as thi
                      ()))
             buttonDiv.appendChild( bugReportButton) |> ignore
 
+            //checkbox for JLab sync (if cell is selected and has serialized blocks, decode them to workspace; if cell is empty, empty workspace)
+            let syncCheckbox = document.createElement ("input")
+            syncCheckbox.setAttribute("type", "checkbox")
+            syncCheckbox?``checked`` <- true //turn on sync by default
+            syncCheckbox.id <- "syncCheckbox"
+            let checkboxLabel = document.createElement ("label")
+            checkboxLabel.innerText <- "Notebook Sync"
+            checkboxLabel.setAttribute("for", "syncCheckbox")
+            buttonDiv.appendChild( syncCheckbox) |> ignore
+            buttonDiv.appendChild( checkboxLabel) |> ignore
+
             //append all buttons in div
             this.node.appendChild ( buttonDiv ) |> ignore
 
@@ -80,6 +92,7 @@ type BlocklyWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker) as thi
         member val notHooked = true with get, set
         member this.Notebooks = notebooks
 
+        /// Refresh intellisense when kernel executes
         member this.onKernelExecuted =
             PhosphorSignaling.Slot<IKernel, IIOPubMessage>(fun sender args ->
                 // Browser.Dom.console.log( "kernel message: " + args.header.msg_type.ToString() )
@@ -89,10 +102,25 @@ type BlocklyWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker) as thi
                     Toolbox.UpdateAllIntellisense()
                 true)
 
+        /// When active cell in JLab changes, try to update the blocks workspace
+        member this.onActiveCellChanged =
+          PhosphorSignaling.Slot<INotebookTracker, Cell>(fun sender args ->
+            let syncCheckbox = document.getElementById("syncCheckbox")
+            let (isChecked : bool) = syncCheckbox?``checked`` |> unbox //checked is a f# reserved keyword
+            if isChecked && notebooks.activeCell <> null then
+              //if selected cell empty, clear the workspace
+              if notebooks.activeCell.model.value.text.Trim() = "" then
+                blockly.getMainWorkspace().clear() //to avoid duplicates
+              //otherwise try to to create blocks from cell contents (fails gracefully)
+              else
+                this.RenderBlocks()
+            true
+           )
+
         /// Wait until widget shown to prevent injection from taking place before the DOM is ready
         /// Inject blockly into div and save blockly workspace to private member
         override this.onAfterAttach() =
-            //try to register for code execution messages if we haven't already
+            //try to register for code execution messages
             if this.notHooked then
                 match this.Notebooks.currentWidget with
                 | Some(widget) ->
@@ -104,6 +132,9 @@ type BlocklyWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker) as thi
                         this.notHooked <- false
                     | None -> ()
                 | None -> ()
+
+            //listen for active cell changes in JupyterLab
+            this.Notebooks.activeCellChanged.connect( this.onActiveCellChanged, this ) |> ignore
 
             //set up blockly workspace
             this.workspace <-
@@ -118,6 +149,7 @@ type BlocklyWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker) as thi
                     )
             console.log ("blockly palette initialized")
 
+        /// Resize blockly when widget resizes
         override this.onResize( msg : PhosphorWidgets.Widget.ResizeMessage ) =
           let blocklyDiv = document.getElementById("blocklyDiv")
           let buttonDiv = document.getElementById("buttonDiv")
@@ -131,23 +163,31 @@ type BlocklyWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker) as thi
           blockly.svgResize( this.workspace :?> Blockly.WorkspaceSvg )
           ()
 
-        member this.RenderBlocks() =
-            if notebooks.activeCell <> null then
-                //xml is always the last line of cell
-                let xmlStringComment = notebooks.activeCell.model.value.text.Split('\n') |> Array.last
-                Toolbox.decodeWorkspace (xmlStringComment.TrimStart([| '#' |]))
-            else
-                console.log ("unable to decode blocks")
+        /// Render blocks in workspace using xml. Defaults to xml present in active cell
+        member this.RenderBlocks()  =
+          if notebooks.activeCell <> null then
+            let xmlString = 
+                let xmlStringComment = notebooks.activeCell.model.value.text.Split('\n') |> Array.last //xml is always the last line of cell
+                xmlStringComment.TrimStart([| '#' |]) //remove comment marker
+            try
+              blockly.getMainWorkspace().clear() //avoid duplicates
+              Toolbox.decodeWorkspace ( xmlString )
+            with
+            | _ -> 
+              console.log ("unable to decode blocks: last line is invald xml")
+          else
+            console.log ("unable to decode blocks: active cell is null")
 
+        /// Render blocks to code
         member this.RenderCode() =
-            let code = generator.workspaceToCode (this.workspace)
-            if notebooks.activeCell <> null then
-                notebooks.activeCell.model.value.text <-
-                    notebooks.activeCell.model.value.text + code + "\n#"
-                    + Toolbox.encodeWorkspace() //append seems better than overwrite...
-                console.log ("wrote to active cell:\n" + code + "\n")
-            else
-                console.log ("no cell active, flushed:\n" + code + "\n")
+          let code = generator.workspaceToCode (this.workspace)
+          if notebooks.activeCell <> null then
+              notebooks.activeCell.model.value.text <-
+                  notebooks.activeCell.model.value.text + code + "\n#"
+                  + Toolbox.encodeWorkspace() //append seems better than overwrite...
+              console.log ("wrote to active cell:\n" + code + "\n")
+          else
+              console.log ("no cell active, flushed:\n" + code + "\n")
     end
 
 let extension =

@@ -34,7 +34,7 @@ type BlocklyWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker) as thi
     class
         inherit Widget()
         let generator = Blockly.python //Blockly.javascript
-        ///Remove blocks from workspace without affecting variable map
+        ///Remove blocks from workspace without affecting variable map like blockly.getMainWorkspace().clear() would
         let clearBlocks() = 
           let workspace = blockly.getMainWorkspace()
           let blocks = workspace.getAllBlocks(false)
@@ -174,15 +174,21 @@ type BlocklyWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker) as thi
         /// Render blocks in workspace using xml. Defaults to xml present in active cell
         member this.RenderBlocks()  =
           if notebooks.activeCell <> null then
-            let xmlString = 
+            //Get XML string if it exists
+            let xmlStringOption = 
                 let xmlStringComment = notebooks.activeCell.model.value.text.Split('\n') |> Array.last //xml is always the last line of cell
-                xmlStringComment.TrimStart([| '#' |]) //remove comment marker
+                if xmlStringComment.Contains("xmlns") then
+                    xmlStringComment.TrimStart([| '#' |]) |> Some //remove comment marker
+                else
+                    None
             try
-              // blockly.getMainWorkspace().clear() //avoid duplicates
               clearBlocks()
-              Toolbox.decodeWorkspace ( xmlString )
+              match xmlStringOption with
+              | Some(xmlString) -> Toolbox.decodeWorkspace ( xmlString )
+              | None -> ()
             with
-            | _ -> 
+            | e -> 
+              Browser.Dom.window.alert("Unable to perform 'Code to Blocks': XML is either invald or renames existing variables. Specific error message is: " + e.Message )
               console.log ("unable to decode blocks: last line is invald xml")
           else
             console.log ("unable to decode blocks: active cell is null")

@@ -356,7 +356,7 @@ let SafeRemoveField( block:Blockly.Block ) ( fieldName : string ) ( inputName : 
   | _, null ->  Browser.Dom.console.log( "error removing (" + fieldName + ") from block; input (" + inputName + ") does not exist" )
   | _,input -> input.removeField( fieldName )
 
-// TODO: MAKE BLOCK THAT ALLOWS USER TO MAKE AN ASSIGNMENT TO A PROPERTY
+// TODO: MAKE BLOCK THAT ALLOWS USER TO MAKE AN ASSIGNMENT TO A PROPERTY (SETTER)
 // TODO: CHANGE OUTPUT CONNECTOR DEPENDING ON INTELLISENSE: IF FUNCTION DOESN'T HAVE AN OUTPUT, REMOVE CONNECTOR
 /// Make a block that has an intellisense-populated member dropdown. The member type is property or method, defined by the filter function
 /// Note the "blockName" given to these is hardcoded elsewhere, e.g. the toolbox and intellisense update functions
@@ -370,7 +370,11 @@ let makeMemberIntellisenseBlock (blockName:string) (preposition:string) (verb:st
       // let b = Blockly.variables.getVariable(thisBlockClosure.workspace, fieldVariable.getValue() ) //for test purposes -- null when not defined, similar to getText()
       // let v = thisBlockClosure.workspace.getAllVariables() //returns all variables, but we don't know which is ours
       // fieldVariable.initModel() // kind of accesses user-selected variable name but also creates a variable with the default name
-      // let lastVar = thisBlockClosure.workspace.getAllVariables() |> Seq.last  //we can get the last var added, but that may not be ours
+      
+      //Get the last var created. Insane but works because by default, the flyout specifically lists this var in the block. User then expects to change if needed
+      let lastVar = thisBlockClosure.workspace.getAllVariables() |> Seq.last 
+
+      //Attempt to get XML serialized data
       let dataString = (thisBlockClosure?data |> string)
       let data = if dataString.Contains(":") then dataString.Split(':') else [| "" |] //var:member data
 
@@ -379,10 +383,10 @@ let makeMemberIntellisenseBlock (blockName:string) (preposition:string) (verb:st
         | Some( option ) -> fieldVariable.getOptions() |> Seq.find( fun o -> o.[1] = option ) |> Seq.head
         // | None -> fieldVariable.getText() //on creation is empty string 
         | None ->
-          match fieldVariable.getText(), data.[0] with
-          | "","" -> ""
-          | "",v -> v
-          | t, _ -> t
+          match fieldVariable.getText(), data.[0], lastVar.name with
+          | "","", l ->  l  //Previously we returned empty ""; now as a last resort we return the last var created
+          | "",v,_-> v      //prefer XML data over last var when XML data exists
+          | t, _,_ -> t     //prefer current var name over all others when it exists
       selectionUserName
 
     //back up the current member selection so it is not lost every time a cell is run
@@ -412,15 +416,18 @@ let makeMemberIntellisenseBlock (blockName:string) (preposition:string) (verb:st
           | false,_ -> newMemberSelection
 
         //testing backing up to data; could replace 'selectedMember' if this works
-        let data = (thisBlockClosure?data |> string).Split(':') //var:member data
-        // thisBlockClosure?data <- data.[0] + ":" + thisBlockClosure?selectedMember
+        // let data = (thisBlockClosure?data |> string).Split(':') //var:member data
+        // thisBlockClosure?data <- data.[0] + ":" + thisBlockClosure?selectedMember  //TODO: fix setting data, prevent overwriting XML saves
+        if varUserName <> "" then
+          thisBlockClosure?data <- varUserName + ":" + thisBlockClosure?selectedMember //only set data when at least var name is known
 
         //Since we are leveraging the validator, we return the selected value without modification
         newMemberSelection |> unbox)
        ) :> Blockly.Field), "MEMBER"  ) |> ignore 
 
-      //testing backing up to data; could replace 'selectedMember' if this works
-      // thisBlockClosure?data <- varUserName + ":" + thisBlockClosure?selectedMember
+      //When the deserialized XML contains data, we should never overwrite it here
+      if thisBlockClosure?data = null then
+        thisBlockClosure?data <- varUserName + ":" + thisBlockClosure?selectedMember //TODO: fix setting data, prevent overwriting XML saves (is this one needed?)
 
       //set up the initial member tooltip
       let memberField = thisBlockClosure.getField("MEMBER")

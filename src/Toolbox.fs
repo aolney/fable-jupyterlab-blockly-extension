@@ -366,49 +366,65 @@ let makeMemberIntellisenseBlock (blockName:string) (preposition:string) (verb:st
     //Get the user-facing name of the selected variable; on creation, defaults to created name
     "varSelectionUserName" ==> fun (thisBlockClosure : Blockly.Block) (selectedOption : string option)  ->
       let fieldVariable = thisBlockClosure.getField("VAR") :?> Blockly.FieldVariable
+      // let variableModel = fieldVariable.getVariable() //for test purposes -- null when not defined, similar to getText()
+      // let b = Blockly.variables.getVariable(thisBlockClosure.workspace, fieldVariable.getValue() ) //for test purposes -- null when not defined, similar to getText()
+      // let v = thisBlockClosure.workspace.getAllVariables() //returns all variables, but we don't know which is ours
       // fieldVariable.initModel() // kind of accesses user-selected variable name but also creates a variable with the default name
-      // TODO: below is working but has side effects for intellisense
-      // let lastVar = thisBlockClosure.workspace.getAllVariables() |> Seq.last 
+      // let lastVar = thisBlockClosure.workspace.getAllVariables() |> Seq.last  //we can get the last var added, but that may not be ours
+      let dataString = (thisBlockClosure?data |> string)
+      let data = if dataString.Contains(":") then dataString.Split(':') else [| "" |] //var:member data
+
       let selectionUserName =
         match selectedOption with 
         | Some( option ) -> fieldVariable.getOptions() |> Seq.find( fun o -> o.[1] = option ) |> Seq.head
-        | None -> fieldVariable.getText() //on creation is empty string //if fieldVariable.getText() = "" then lastVar.name else fieldVariable.getText() //on creation
+        // | None -> fieldVariable.getText() //on creation is empty string 
+        | None ->
+          match fieldVariable.getText(), data.[0] with
+          | "","" -> ""
+          | "",v -> v
+          | t, _ -> t
       selectionUserName
 
     //back up the current member selection so it is not lost every time a cell is run
-    "selectedMember" ==> null
+    "selectedMember" ==> ""
+
+    //Use 'data' string to back up custom data; it is serialized to XML
+    // "data" ==> ":" //We can't define this or it overwrites what is deserialized
 
     //Using currently selected var, update intellisense
-    "updateIntellisense" ==> fun (thisBlockClosure : Blockly.Block) (selectedOption : string option) (optionsFunction : string -> string[][]) ->
-      //back up the current member selection so it is not lost every time a cell is run; ignore status selections that start with !
-      //let memberField = thisBlockClosure.getField("MEMBER")
-      //thisBlock?selectedMember <- if memberField <> null && not <| memberField.getText().StartsWith("!") then memberField.getText() else null
-
+    "updateIntellisense" ==> fun (thisBlockClosure : Blockly.Block) (selectedVarOption : string option) (optionsFunction : string -> string[][]) ->
       let input = thisBlockClosure.getInput("INPUT")
       SafeRemoveField thisBlockClosure "MEMBER" "INPUT"
       SafeRemoveField thisBlockClosure "USING" "INPUT"
-      let selectionUserName = thisBlockClosure?varSelectionUserName(thisBlockClosure,selectedOption)
-      let options = selectionUserName |> optionsFunction 
+      let varUserName = thisBlockClosure?varSelectionUserName(thisBlockClosure,selectedVarOption)
+      let options = varUserName |> optionsFunction 
 
       //use intellisense to populate the member options, also use validator so that when we select a new member from the dropdown, tooltip is updated
-      input.appendField( !^(blockly.FieldDropdown.Create( options, System.Func<string,obj>( fun newSelection ->
+      input.appendField( !^(blockly.FieldDropdown.Create( options, System.Func<string,obj>( fun newMemberSelection ->
         // Within validator, "this" refers to FieldVariable not block.
         let (thisFieldDropdown : Blockly.FieldDropdown) = !!thisObj
-        thisFieldDropdown.setTooltip( !^( getIntellisenseMemberTooltip selectionUserName newSelection ) )
+        thisFieldDropdown.setTooltip( !^( getIntellisenseMemberTooltip varUserName newMemberSelection ) )
         //back up the current member selection so it is not lost every time a cell is run; ignore status selections that start with !
         thisBlockClosure?selectedMember <- 
-          match newSelection.StartsWith("!"),thisBlock?selectedMember with
-          | _, null -> newSelection 
+          match newMemberSelection.StartsWith("!"),thisBlock?selectedMember with
+          | _, "" -> newMemberSelection 
           | true, _ -> thisBlock?selectedMember
-          | false,_ -> newSelection
+          | false,_ -> newMemberSelection
+
+        //testing backing up to data; could replace 'selectedMember' if this works
+        let data = (thisBlockClosure?data |> string).Split(':') //var:member data
+        // thisBlockClosure?data <- data.[0] + ":" + thisBlockClosure?selectedMember
 
         //Since we are leveraging the validator, we return the selected value without modification
-        newSelection |> unbox)
+        newMemberSelection |> unbox)
        ) :> Blockly.Field), "MEMBER"  ) |> ignore 
+
+      //testing backing up to data; could replace 'selectedMember' if this works
+      // thisBlockClosure?data <- varUserName + ":" + thisBlockClosure?selectedMember
 
       //set up the initial member tooltip
       let memberField = thisBlockClosure.getField("MEMBER")
-      memberField.setTooltip( !^( getIntellisenseMemberTooltip selectionUserName (memberField.getText()) ) )
+      memberField.setTooltip( !^( getIntellisenseMemberTooltip varUserName (memberField.getText()) ) )
 
       //add more fields if arguments are needed. Current strategy is to make those their own block rather than adding mutators to this block
       if hasArgs then
@@ -439,7 +455,7 @@ let makeMemberIntellisenseBlock (blockName:string) (preposition:string) (verb:st
         
         // Create the options FieldDropdown using "optionsGenerator" with the selected name, currently None
         // .appendField( !^(blockly.FieldDropdown.Create( thisBlock?varSelectionUserName(thisBlockClosure, None) |> requestAndStubOptions thisBlock ) :> Blockly.Field), "MEMBER"  ) |> ignore 
-      thisBlockClosure?updateIntellisense( thisBlockClosure, None, requestAndStubOptions thisBlock) //adds the member fields, triggering intellisense
+      thisBlockClosure?updateIntellisense( thisBlockClosure, None, requestAndStubOptions thisBlockClosure) //adds the member fields, triggering intellisense
 
       if hasArgs then thisBlock.setInputsInline(true)
       thisBlock.setOutput(true)
@@ -458,15 +474,19 @@ let makeMemberIntellisenseBlock (blockName:string) (preposition:string) (verb:st
         // let varName = thisBlock?varSelectionUserName(thisBlock, None)
         // input.appendField( !^(blockly.FieldDropdown.Create( varName |> getIntellisenseMemberOptions memberSelectionFunction ) :> Blockly.Field), "MEMBER"  ) |> ignore 
         
+        //deserialize data from xml, var:member
+        let data = (thisBlock?data |> string).Split(':')
+
         // update the options FieldDropdown by recreating it with fresh intellisense
         thisBlock?updateIntellisense( thisBlock, None, getIntellisenseMemberOptions memberSelectionFunction ) //adds the member fields, triggering intellisense
 
         //restore previous member selection if possible
         let memberField = thisBlock.getField("MEMBER")
-        memberField.setValue( thisBlock?selectedMember)
+        // memberField.setValue( thisBlock?selectedMember) //OLD way; does not work with XML serialization 
+        memberField.setValue( data.[1] ) //NEW way; is deserialized from XML
 
         // update tooltip
-        let varName = thisBlock?varSelectionUserName(thisBlock, None)
+        let varName = thisBlock?varSelectionUserName(thisBlock, None) //Blockly is pretty good at recovering the variable, so we don't need to get from data
         thisBlock.setTooltip !^( varName |> getIntellisenseVarTooltip )
         ()
     ]

@@ -34,7 +34,12 @@ type BlocklyWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker) as thi
     class
         inherit Widget()
         let generator = Blockly.python //Blockly.javascript
-
+        ///Remove blocks from workspace without affecting variable map
+        let clearBlocks() = 
+          let workspace = blockly.getMainWorkspace()
+          let blocks = workspace.getAllBlocks(false)
+          for b in blocks do
+            b.dispose(false)
         do
             //inject intellisense dependency into Blockly toolbox
             Toolbox.notebooks <- notebooks
@@ -110,10 +115,13 @@ type BlocklyWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker) as thi
             if isChecked && notebooks.activeCell <> null then
               //if selected cell empty, clear the workspace
               if notebooks.activeCell.model.value.text.Trim() = "" then
-                blockly.getMainWorkspace().clear() //to avoid duplicates
+                // blockly.getMainWorkspace().clear() //to avoid duplicates
+                clearBlocks()
               //otherwise try to to create blocks from cell contents (fails gracefully)
               else
                 this.RenderBlocks()
+              //Update intellisense on blocks we just created
+              Toolbox.UpdateAllIntellisense()
             true
            )
 
@@ -170,7 +178,8 @@ type BlocklyWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker) as thi
                 let xmlStringComment = notebooks.activeCell.model.value.text.Split('\n') |> Array.last //xml is always the last line of cell
                 xmlStringComment.TrimStart([| '#' |]) //remove comment marker
             try
-              blockly.getMainWorkspace().clear() //avoid duplicates
+              // blockly.getMainWorkspace().clear() //avoid duplicates
+              clearBlocks()
               Toolbox.decodeWorkspace ( xmlString )
             with
             | _ -> 
@@ -183,8 +192,9 @@ type BlocklyWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker) as thi
           let code = generator.workspaceToCode (this.workspace)
           if notebooks.activeCell <> null then
               notebooks.activeCell.model.value.text <-
-                  notebooks.activeCell.model.value.text + code + "\n#"
-                  + Toolbox.encodeWorkspace() //append seems better than overwrite...
+                  code //overwrite
+                  // notebooks.activeCell.model.value.text + code //append 
+                  + "\n#" + Toolbox.encodeWorkspace()  //workspace as comment
               console.log ("wrote to active cell:\n" + code + "\n")
           else
               console.log ("no cell active, flushed:\n" + code + "\n")

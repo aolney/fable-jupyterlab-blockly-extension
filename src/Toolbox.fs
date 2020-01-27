@@ -40,8 +40,38 @@ let thisBlock : Blockly.Block = jsNative
 [<Emit("this")>]
 let thisObj : obj = jsNative
 
-//Prevent Blockly from prepending variable definitions for us
-blockly?Python?finish <- id
+// This is throwing a babel error, so kludging the below
+/// Emit "delete"
+// [<Emit("delete $0")>]
+// let delete (o : obj) : unit = jsNative
+
+[<Emit("delete blockly.Python.definitions_")>]
+let deleteDefinitions : unit = jsNative
+
+[<Emit("delete blockly.Python.functionNames_")>]
+let deleteFunctions : unit = jsNative
+
+//Prevent Blockly from prepending variable definitions for us -- suppresses imports ; TODO: 'id' is too heavy handed - we want imports but not definitions
+// blockly?Python?finish <- id
+
+blockly?Python?finish <- System.Func<string,string>(fun code ->
+  let imports = ResizeArray<string>()
+  for name in JS.Constructors.Object.keys( blockly?Python?definitions_ ) do
+    let ( definitions : obj ) =  blockly?Python?definitions_
+    let (def : string) = definitions.[ name ] |> string
+    if def.Contains("import") then
+      imports.Add(def)
+  
+  deleteDefinitions
+  deleteFunctions
+
+  // delete( blockly?Python?definitions_ )
+  // delete( blockly?Python?functionNames_ )
+
+  blockly?Python?variableDB_?reset()
+
+  (imports |> String.concat "\n")  + "\n\n" + code)
+
 
 let encodeWorkspace() =
   let xml = Blockly.xml.workspaceToDom( blockly.getMainWorkspace() );

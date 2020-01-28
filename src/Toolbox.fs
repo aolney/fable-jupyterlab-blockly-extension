@@ -51,9 +51,10 @@ let deleteDefinitions : unit = jsNative
 [<Emit("delete blockly.Python.functionNames_")>]
 let deleteFunctions : unit = jsNative
 
-//Prevent Blockly from prepending variable definitions for us -- suppresses imports ; TODO: 'id' is too heavy handed - we want imports but not definitions
+//Prevent Blockly from prepending variable definitions for us 
+// 'id' is too heavy handed - we want imports but not definitions
 // blockly?Python?finish <- id
-
+// This allows imports but not definitions //TODO: code gen for functions seems to be broken, maybe here?
 blockly?Python?finish <- System.Func<string,string>(fun code ->
   let imports = ResizeArray<string>()
   for name in JS.Constructors.Object.keys( blockly?Python?definitions_ ) do
@@ -65,22 +66,55 @@ blockly?Python?finish <- System.Func<string,string>(fun code ->
   deleteDefinitions
   deleteFunctions
 
-  // delete( blockly?Python?definitions_ )
-  // delete( blockly?Python?functionNames_ )
-
   blockly?Python?variableDB_?reset()
 
   (imports |> String.concat "\n")  + "\n\n" + code)
 
 
+/// Encode the current Blockly workspace as an XML string
 let encodeWorkspace() =
   let xml = Blockly.xml.workspaceToDom( blockly.getMainWorkspace() );
   let xmlText = Blockly.xml.domToText( xml )
   xmlText
 
+/// Decode an XML string and load the represented blocks into the Blockly workspace
 let decodeWorkspace( xmlText ) =
   let xml = Blockly.xml.textToDom( xmlText )
   Blockly.xml.domToWorkspace( xml, blockly.getMainWorkspace() ) |> ignore
+
+/// A template to create arbitrary code blocks in these dimensions: dummy/input; output/nooutput
+let makeCodeBlock (blockName:string) (hasInput: bool) (hasOutput: bool) =
+  blockly?Blocks.[blockName] <- createObj [
+    "init" ==> fun () ->
+      let input = if hasInput then thisBlock.appendValueInput("INPUT").setCheck(!^None) else thisBlock.appendDummyInput()
+      Browser.Dom.console.log( blockName + " init")
+      input
+        .appendField( !^(blockly.FieldTextInput.Create("type code here...") :?> Blockly.Field), "CODE"  ) |> ignore
+      if hasOutput then 
+        thisBlock.setOutput(true, !^None)
+      else
+        thisBlock.setNextStatement true
+        thisBlock.setPreviousStatement true
+      thisBlock.setColour(!^230.0)
+      thisBlock.setTooltip !^("You can put any Python code in this block. Use this block if you " + (if hasInput then "do" else "don't") + " need to connect an input block and "+ (if hasOutput then "do" else "don't") + " need to connect an output block." )
+      thisBlock.setHelpUrl !^"https://docs.python.org/3/"
+    ]
+  // Generate Python template code
+  blockly?Python.[blockName] <- fun (block : Blockly.Block) -> 
+    let userCode = block.getFieldValue("CODE").Value |> string
+    let code =
+      if hasInput then
+        let input = blockly?Python?valueToCode( block, "x", blockly?Python?ORDER_ATOMIC )
+        userCode + " " + input
+      else 
+        userCode
+    [| code; blockly?Python?ORDER_FUNCTION_CALL |]
+
+//Make all varieties of code block
+makeCodeBlock "dummyOutputCodeBlock" false true
+makeCodeBlock "dummyNoOutputCodeBlock" false false
+makeCodeBlock "valueOutputCodeBlock" true true
+makeCodeBlock "valueNoOutputCodeBlock" true false
 
 /// Create a Blockly/Python import block
 blockly?Blocks.["import"] <- createObj [
@@ -197,6 +231,7 @@ type IntellisenseEntry =
     Name : string //from user if parent and completion if child
     Info : string //from inspection
     isFunction : bool //from inspection
+    isClass : bool //from inspection
   }
 // An entry for a complex name, e.g. object, that has associated properties and/or methods
 type IntellisenseVariable =
@@ -260,6 +295,9 @@ let intellisenseLookup = new System.Collections.Generic.Dictionary<string,Intell
 /// Determine if an entry is a function. We have separate blocks for properties and functions because only function blocks need parameters
 let isFunction( info : string ) = info.Contains("Type: function")
 
+/// Determine if an entry is a class. 
+let isClass( info : string ) = info.Contains("Type: class")
+
 /// Request an IntellisenseVariable. If the type does not descend from object, the children will be empty.
 /// Sometimes we will create a variable but it will have no type until we make an assignment. 
 /// We might also create a variable and then change its type.
@@ -269,7 +307,7 @@ let RequestIntellisenseVariable(block : Blockly.Block) ( parentName : string ) =
   // Update the intellisenseLookup asynchronously. First do an info lookup. If var is not an instance type, continue to doing tooltip lookup
   promise {
     let! parentInspection = GetKernalInspection( parentName )
-    let parent = { Name=parentName;  Info=parentInspection; isFunction=isFunction(parentInspection) }
+    let parent = { Name=parentName;  Info=parentInspection; isFunction=isFunction(parentInspection); isClass=isClass(parentInspection) }
     // V2 store the name/docstring pair. This is always overwritten(*Updating*).
     // if not <| nameDocMap.ContainsKey( parentName ) then nameDocMap.Add(parentName,parentInspection) else nameDocMap.[parentName] <- parentInspection
 
@@ -295,7 +333,7 @@ let RequestIntellisenseVariable(block : Blockly.Block) ( parentName : string ) =
       let children = 
           Array.zip completions inspections 
           |> Array.map( fun (completion,inspection) -> 
-            {Name=completion; Info=inspection; isFunction=isFunction(inspection) }
+            {Name=completion; Info=inspection; isFunction=isFunction(inspection); isClass=isClass(inspection) }
           ) 
       let intellisenseVariable = { VariableEntry=parent; ChildEntries=children}
       // Store so we can synchronously find results later; if we have seen this var before, overwrite.
@@ -314,6 +352,7 @@ let RequestIntellisenseVariable(block : Blockly.Block) ( parentName : string ) =
     //Call update event  
     let intellisenseUpdateEvent = Blockly.events.Change.Create(block, "field", "VAR", 0, 1) 
     intellisenseUpdateEvent.group <- "INTELLISENSE"
+    Blockly.events?disabled_ <- 0 //not sure if this is needed, but sometimes events are not firing?
     Blockly.events.fire( intellisenseUpdateEvent :?> Blockly.Events.Abstract )
 
     } |> Promise.start
@@ -390,7 +429,7 @@ let SafeRemoveField( block:Blockly.Block ) ( fieldName : string ) ( inputName : 
 // TODO: CHANGE OUTPUT CONNECTOR DEPENDING ON INTELLISENSE: IF FUNCTION DOESN'T HAVE AN OUTPUT, REMOVE CONNECTOR
 /// Make a block that has an intellisense-populated member dropdown. The member type is property or method, defined by the filter function
 /// Note the "blockName" given to these is hardcoded elsewhere, e.g. the toolbox and intellisense update functions
-let makeMemberIntellisenseBlock (blockName:string) (preposition:string) (verb:string) (memberSelectionFunction: IntellisenseEntry -> bool ) ( hasArgs : bool )= 
+let makeMemberIntellisenseBlock (blockName:string) (preposition:string) (verb:string) (memberSelectionFunction: IntellisenseEntry -> bool ) ( hasArgs : bool ) ( hasDot : bool )= 
   blockly?Blocks.[blockName] <- createObj [
 
     //Get the user-facing name of the selected variable; on creation, defaults to created name
@@ -445,9 +484,7 @@ let makeMemberIntellisenseBlock (blockName:string) (preposition:string) (verb:st
           | true, _ -> thisBlock?selectedMember
           | false,_ -> newMemberSelection
 
-        //testing backing up to data; could replace 'selectedMember' if this works
-        // let data = (thisBlockClosure?data |> string).Split(':') //var:member data
-        // thisBlockClosure?data <- data.[0] + ":" + thisBlockClosure?selectedMember  //TODO: fix setting data, prevent overwriting XML saves
+        //back up to XML data if valid
         if varUserName <> "" then
           thisBlockClosure?data <- varUserName + ":" + thisBlockClosure?selectedMember //only set data when at least var name is known
 
@@ -455,9 +492,9 @@ let makeMemberIntellisenseBlock (blockName:string) (preposition:string) (verb:st
         newMemberSelection |> unbox)
        ) :> Blockly.Field), "MEMBER"  ) |> ignore 
 
-      //When the deserialized XML contains data, we should never overwrite it here
+      //back up to XML data if valide; when the deserialized XML contains data, we should never overwrite it here
       if thisBlockClosure?data = null then
-        thisBlockClosure?data <- varUserName + ":" + thisBlockClosure?selectedMember //TODO: fix setting data, prevent overwriting XML saves (is this one needed?)
+        thisBlockClosure?data <- varUserName + ":" + thisBlockClosure?selectedMember 
 
       //set up the initial member tooltip
       let memberField = thisBlockClosure.getField("MEMBER")
@@ -538,9 +575,9 @@ let makeMemberIntellisenseBlock (blockName:string) (preposition:string) (verb:st
         ""
       else if hasArgs then
         let (args : string) = blockly?Python?valueToCode(block, "INPUT", blockly?Python?ORDER_MEMBER) 
-        varName + "." + memberName + "(" +  args.Trim([| '['; ']' |]) + ")"
+        varName + (if hasDot then "." else "" ) + memberName + "(" +  args.Trim([| '['; ']' |]) + ")"
       else
-        varName + "." + memberName
+        varName + (if hasDot then "." else "" ) + memberName
     [| code; blockly?Python?ORDER_FUNCTION_CALL |]
 
 //Intellisense variable get property block
@@ -550,6 +587,7 @@ makeMemberIntellisenseBlock
   "get"
   (fun (ie : IntellisenseEntry) -> not( ie.isFunction ))
   false //no arguments
+  true //has dot
 
 //Intellisense method block
 makeMemberIntellisenseBlock 
@@ -558,7 +596,16 @@ makeMemberIntellisenseBlock
   "do"
   (fun (ie : IntellisenseEntry) -> ie.isFunction )
   true //has arguments
+  true //has dot
 
+//Intellisense class constructor block
+makeMemberIntellisenseBlock 
+  "varCreateObject"
+  "with"
+  "create"
+  (fun (ie : IntellisenseEntry) -> ie.isClass )
+  true //has arguments
+  true //no dot
 
 // Override the dynamic 'Variables' toolbox category initialized in blockly_compressed.js
 // The basic idea here is that as we add vars, we extend the list of vars in the dropdowns in this category
@@ -598,6 +645,13 @@ blockly?Variables?flyoutCategoryBlocks <- fun (workspace : Blockly.Workspace) ->
       xml.setAttribute("gap", if blockly?Blocks?varDoMethod then "20" else "8")
       xml.appendChild( Blockly.variables.generateVariableFieldDom(lastVarFieldXml)) |> ignore
       xmlList.Add(xml)
+    //variable create object block
+    if blockly?Blocks?varCreateObject then
+      let xml = Blockly.Utils.xml.createElement("block") 
+      xml.setAttribute("type", "varCreateObject")
+      xml.setAttribute("gap", if blockly?Blocks?varDoMethod then "20" else "8")
+      xml.appendChild( Blockly.variables.generateVariableFieldDom(lastVarFieldXml)) |> ignore
+      xmlList.Add(xml)
     //variable get block, one per variable: TODO - WHY DO WE NEED ONE PER VAR? LESS CLUTTER TO HAVE ONE WITH DROPDOWN
     if blockly?Blocks?variables_get then
       //for some reason the original "directly translated" code is passing the workspace into sort instead of the variables
@@ -619,6 +673,12 @@ let toolbox =
     """<xml xmlns="https://developers.google.com/blockly/xml" id="toolbox" style="display: none">
     <category name="IMPORT" colour="255">
       <block type="import"></block>
+    </category>
+    <category name="FREESTYLE" colour="290">
+      <block type="dummyOutputCodeBlock"></block>
+      <block type="dummyNoOutputCodeBlock"></block>
+      <block type="valueOutputCodeBlock"></block>
+      <block type="valueNoOutputCodeBlock"></block>
     </category>
     <category name="LOGIC" colour="%{BKY_LOGIC_HUE}">
       <block type="controls_if"></block>

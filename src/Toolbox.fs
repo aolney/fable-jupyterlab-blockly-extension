@@ -116,27 +116,34 @@ makeCodeBlock "dummyNoOutputCodeBlock" false false
 makeCodeBlock "valueOutputCodeBlock" true true
 makeCodeBlock "valueNoOutputCodeBlock" true false
 
-/// Create a Blockly/Python import block
-blockly?Blocks.["import"] <- createObj [
-  "init" ==> fun () -> 
-    // Browser.Dom.console.log("did import block init")
-    thisBlock.appendDummyInput()
-      .appendField( !^"import"  )
-      .appendField( !^(blockly.FieldTextInput.Create("some library") :?> Blockly.Field), "libraryName"  )
-      .appendField( !^"as")
-      .appendField( !^(blockly.FieldVariable.Create("variable name") :?> Blockly.Field), "libraryAlias"  ) |> ignore
-    thisBlock.setNextStatement true
-    thisBlock.setPreviousStatement true
-    thisBlock.setColour !^230.0
-    thisBlock.setTooltip !^"Import a python package to access functions in that package"
-    thisBlock.setHelpUrl !^"https://docs.python.org/3/reference/import.html"
-  ]
-/// Generate Python import code
-blockly?Python.["import"] <- fun (block : Blockly.Block) -> 
-  let libraryName = block.getFieldValue("libraryName").Value |> string
-  let libraryAlias = blockly?Python?variableDB_?getName( block.getFieldValue("libraryAlias").Value |> string, blockly?Variables?NAME_TYPE);
-  let code =  "import " + libraryName + " as " + libraryAlias + "\n"
-  code
+/// Create a Blockly/Python templated import block
+let makeImportBlock (blockName:string) (labelOne:string) (labelTwo:string)  =
+  blockly?Blocks.[ blockName ] <- createObj [
+    "init" ==> fun () -> 
+      // Browser.Dom.console.log("did import block init")
+      thisBlock.appendDummyInput()
+        .appendField( !^labelOne  )
+        .appendField( !^(blockly.FieldTextInput.Create("some library") :?> Blockly.Field), "libraryName"  )
+        .appendField( !^labelTwo)
+        .appendField( !^(blockly.FieldVariable.Create("variable name") :?> Blockly.Field), "libraryAlias"  ) |> ignore
+      thisBlock.setNextStatement true
+      thisBlock.setPreviousStatement true
+      thisBlock.setColour !^230.0
+      thisBlock.setTooltip !^"Import a python package to access functions in that package"
+      thisBlock.setHelpUrl !^"https://docs.python.org/3/reference/import.html"
+    ]
+  /// Generate Python import code
+  blockly?Python.[ blockName ] <- fun (block : Blockly.Block) -> 
+    let libraryName = block.getFieldValue("libraryName").Value |> string
+    let libraryAlias = blockly?Python?variableDB_?getName( block.getFieldValue("libraryAlias").Value |> string, blockly?Variables?NAME_TYPE);
+    let code =  labelOne + " " + libraryName + " " + labelTwo + " " + libraryAlias + "\n"
+    code
+
+//make import as block
+makeImportBlock "importAs" "import" "as"
+
+//make from import block
+makeImportBlock "importFrom" "from" "import"
 
 /// A template for single argument function block creation (e.g. int(X)), including the code generator.
 let makeSingleArgFunctionBlock (blockName:string) (label:string) (outputType:string) (tooltip:string) (helpurl:string) (functionStr:string) =
@@ -649,7 +656,7 @@ blockly?Variables?flyoutCategoryBlocks <- fun (workspace : Blockly.Workspace) ->
     if blockly?Blocks?varCreateObject then
       let xml = Blockly.Utils.xml.createElement("block") 
       xml.setAttribute("type", "varCreateObject")
-      xml.setAttribute("gap", if blockly?Blocks?varDoMethod then "20" else "8")
+      xml.setAttribute("gap", if blockly?Blocks?varCreateObject then "20" else "8")
       xml.appendChild( Blockly.variables.generateVariableFieldDom(lastVarFieldXml)) |> ignore
       xmlList.Add(xml)
     //variable get block, one per variable: TODO - WHY DO WE NEED ONE PER VAR? LESS CLUTTER TO HAVE ONE WITH DROPDOWN
@@ -672,7 +679,8 @@ blockly?Variables?flyoutCategoryBlocks <- fun (workspace : Blockly.Workspace) ->
 let toolbox =
     """<xml xmlns="https://developers.google.com/blockly/xml" id="toolbox" style="display: none">
     <category name="IMPORT" colour="255">
-      <block type="import"></block>
+      <block type="importAs"></block>
+      <block type="importFrom"></block>
     </category>
     <category name="FREESTYLE" colour="290">
       <block type="dummyOutputCodeBlock"></block>

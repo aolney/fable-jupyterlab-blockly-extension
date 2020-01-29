@@ -62,14 +62,10 @@ blockly?Python?finish <- System.Func<string,string>(fun code ->
     let (def : string) = definitions.[ name ] |> string
     if def.Contains("import") then
       imports.Add(def)
-  
   deleteDefinitions
   deleteFunctions
-
   blockly?Python?variableDB_?reset()
-
   (imports |> String.concat "\n")  + "\n\n" + code)
-
 
 /// Encode the current Blockly workspace as an XML string
 let encodeWorkspace() =
@@ -81,6 +77,56 @@ let encodeWorkspace() =
 let decodeWorkspace( xmlText ) =
   let xml = Blockly.xml.textToDom( xmlText )
   Blockly.xml.domToWorkspace( xml, blockly.getMainWorkspace() ) |> ignore
+
+//--------------------------------------------------------------------------------------------------
+// DEFINING BLOCKS BELOW
+//--------------------------------------------------------------------------------------------------
+
+// comprehension block (goes inside list block for list comprehension)
+blockly?Blocks.["comprehensionForEach"] <- createObj [
+  "init" ==> fun () ->
+    Browser.Dom.console.log( "comprehensionForEach" + " init")
+    thisBlock.appendValueInput("LIST")
+      .setCheck(!^None)
+      .appendField( !^"for each item"  )
+      .appendField( !^(blockly.FieldVariable.Create("i") :?> Blockly.Field), "VAR"  )
+      .appendField( !^"in list"  ) |> ignore
+    thisBlock.appendValueInput("YIELD")
+      .setCheck(!^None)
+      .setAlign(blockly.ALIGN_RIGHT)
+      .appendField( !^"yield"  ) |> ignore
+    thisBlock.setOutput(true, !^None)
+    thisBlock.setColour(!^230.0)
+    thisBlock.setTooltip !^("Use this to generate a sequence of elements, also known as a comprehension. Often used for list comprehensions." )
+    thisBlock.setHelpUrl !^"https://docs.python.org/3/tutorial/datastructures.html#list-comprehensions"
+  ]
+blockly?Python.["comprehensionForEach"] <- fun (block : Blockly.Block) -> 
+  let var = blockly?Python?variableDB_?getName( block.getFieldValue("VAR").Value |> string, blockly?Variables?NAME_TYPE);
+  let list = blockly?Python?valueToCode( block, "LIST", blockly?Python?ORDER_ATOMIC )
+  let yieldValue = blockly?Python?valueToCode( block, "YIELD", blockly?Python?ORDER_ATOMIC )
+  let code = yieldValue + " for " + var + " in " + list
+  [| code; blockly?Python?ORDER_ATOMIC |] //TODO: COMPREHENSION PRECEDENCE IS ADDING () NESTING; SEE SCREENSHOT; TRY ORDER NONE?
+
+
+
+
+// file read block
+blockly?Blocks.["textFromFile"] <- createObj [
+  "init" ==> fun () ->
+    Browser.Dom.console.log( "textFromFile" + " init")
+    thisBlock.appendDummyInput()
+      .appendField( !^"read text from file"  )
+      .appendField( !^(blockly.FieldTextInput.Create("type filename here...") :?> Blockly.Field), "FILENAME"  ) |> ignore
+    thisBlock.setOutput(true, !^None)
+    thisBlock.setColour(!^230.0)
+    thisBlock.setTooltip !^("Use this to read a text file. It will output a string." )
+    thisBlock.setHelpUrl !^"https://docs.python.org/3/tutorial/inputoutput.html"
+  ]
+// Generate Python template code
+blockly?Python.["textFromFile"] <- fun (block : Blockly.Block) -> 
+  let fileName = block.getFieldValue("FILENAME").Value |> string
+  let code = "open('" + fileName + "').read()"
+  [| code; blockly?Python?ORDER_FUNCTION_CALL |]
 
 /// A template to create arbitrary code blocks in these dimensions: dummy/input; output/nooutput
 let makeCodeBlock (blockName:string) (hasInput: bool) (hasOutput: bool) =
@@ -723,6 +769,7 @@ let toolbox =
           </shadow>
         </value>
       </block>
+      <block type="comprehensionForEach"></block>
       <block type="controls_forEach"></block>
       <block type="controls_flow_statements"></block>
     </category>
@@ -829,6 +876,7 @@ let toolbox =
     </category>
     <category name="TEXT" colour="%{BKY_TEXTS_HUE}">
       <block type="text"></block>
+      <block type="textFromFile"></block>
       <block type="text_join"></block>
       <block type="text_append">
         <value name="TEXT">

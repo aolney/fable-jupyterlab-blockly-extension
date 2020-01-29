@@ -434,7 +434,8 @@ module Blockly =
         abstract DUMMY_INPUT: obj option
         abstract ALIGN_LEFT: obj option
         abstract ALIGN_CENTRE: obj option
-        abstract ALIGN_RIGHT: obj option
+        abstract ALIGN_RIGHT: float
+        // abstract ALIGN_RIGHT: obj option
         abstract DRAG_NONE: obj option
         abstract DRAG_STICKY: obj option
         abstract DRAG_BEGIN: obj option

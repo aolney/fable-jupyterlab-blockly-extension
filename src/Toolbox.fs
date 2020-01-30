@@ -405,6 +405,7 @@ let RequestIntellisenseVariable(block : Blockly.Block) ( parentName : string ) =
     //Call update event  
     let intellisenseUpdateEvent = Blockly.events.Change.Create(block, "field", "VAR", 0, 1) 
     intellisenseUpdateEvent.group <- "INTELLISENSE"
+    Browser.Dom.console.log( "event status is " + Blockly.events?disabled_ )
     Blockly.events?disabled_ <- 0 //not sure if this is needed, but sometimes events are not firing?
     Blockly.events.fire( intellisenseUpdateEvent :?> Blockly.Events.Abstract )
 
@@ -628,7 +629,9 @@ let makeMemberIntellisenseBlock (blockName:string) (preposition:string) (verb:st
         ""
       else if hasArgs then
         let (args : string) = blockly?Python?valueToCode(block, "INPUT", blockly?Python?ORDER_MEMBER) 
-        varName + (if hasDot then "." else "" ) + memberName + "(" +  args.Trim([| '['; ']' |]) + ")"
+        let cleanArgs = System.Text.RegularExpressions.Regex.Replace(args,"^\[|\]$" , "")
+        varName + (if hasDot then "." else "" ) + memberName + "(" +  cleanArgs + ")" 
+        // varName + (if hasDot then "." else "" ) + memberName + "(" +  args.Trim([| '['; ']' |]) + ")" //looks like a bug in Fable, brackets not getting trimmed?
       else
         varName + (if hasDot then "." else "" ) + memberName
     [| code; blockly?Python?ORDER_FUNCTION_CALL |]

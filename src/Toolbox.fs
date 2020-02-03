@@ -128,6 +128,25 @@ blockly?Python.["textFromFile"] <- fun (block : Blockly.Block) ->
   let code = "open('" + fileName + "').read()"
   [| code; blockly?Python?ORDER_FUNCTION_CALL |]
 
+// file read block
+blockly?Blocks.["readFile"] <- createObj [
+  "init" ==> fun () ->
+    Browser.Dom.console.log( "readFile" + " init")
+    thisBlock.appendDummyInput()
+      .appendField( !^"read file"  )
+      .appendField( !^(blockly.FieldTextInput.Create("type filename here...") :?> Blockly.Field), "FILENAME"  ) |> ignore
+    thisBlock.setOutput(true, !^None)
+    thisBlock.setColour(!^230.0)
+    thisBlock.setTooltip !^("Use this to read a file. It will output a file, not a string." )
+    thisBlock.setHelpUrl !^"https://docs.python.org/3/tutorial/inputoutput.html"
+  ]
+// Generate Python template code
+blockly?Python.["readFile"] <- fun (block : Blockly.Block) -> 
+  let fileName = block.getFieldValue("FILENAME").Value |> string
+  let code = "open('" + fileName + "')"
+  [| code; blockly?Python?ORDER_FUNCTION_CALL |]
+
+
 /// A template to create arbitrary code blocks in these dimensions: dummy/input; output/nooutput
 let makeCodeBlock (blockName:string) (hasInput: bool) (hasOutput: bool) =
   blockly?Blocks.[blockName] <- createObj [
@@ -165,7 +184,7 @@ makeCodeBlock "dummyNoOutputCodeBlock" false false
 makeCodeBlock "valueOutputCodeBlock" true true
 makeCodeBlock "valueNoOutputCodeBlock" true false
 
-/// Create a Blockly/Python templated import block
+/// Create a Blockly/Python templated import block: TODO if we make this part of the variable menu, then users will never need to rename variable after using the block
 let makeImportBlock (blockName:string) (labelOne:string) (labelTwo:string)  =
   blockly?Blocks.[ blockName ] <- createObj [
     "init" ==> fun () -> 
@@ -405,13 +424,15 @@ let RequestIntellisenseVariable(block : Blockly.Block) ( parentName : string ) =
     else
       Browser.Dom.console.log("Not refreshing intellisense for " + parent.Name)
 
-    //Call update event  
-    let intellisenseUpdateEvent = Blockly.events.Change.Create(block, "field", "VAR", 0, 1) 
-    intellisenseUpdateEvent.group <- "INTELLISENSE"
-    Browser.Dom.console.log( "event status is " + Blockly.events?disabled_ )
-    Blockly.events?disabled_ <- 0 //not sure if this is needed, but sometimes events are not firing?
-    Blockly.events.fire( intellisenseUpdateEvent :?> Blockly.Events.Abstract )
-
+    //Call update event (sometimes fails for unknown reasons)
+    try 
+      let intellisenseUpdateEvent = Blockly.events.Change.Create(block, "field", "VAR", 0, 1) 
+      intellisenseUpdateEvent.group <- "INTELLISENSE"
+      Browser.Dom.console.log( "event status is " + Blockly.events?disabled_ )
+      Blockly.events?disabled_ <- 0 //not sure if this is needed, but sometimes events are not firing?
+      Blockly.events.fire( intellisenseUpdateEvent :?> Blockly.Events.Abstract )
+    with
+    | e ->  Browser.Dom.console.log( "Intellisense event failed to fire; " + e.Message )
     } |> Promise.start
 
 // let GetIntellisenseVariable( name : string ) = 
@@ -883,6 +904,7 @@ let toolbox =
     <category name="TEXT" colour="%{BKY_TEXTS_HUE}">
       <block type="text"></block>
       <block type="textFromFile"></block>
+      <block type="readFile"></block>
       <block type="text_join"></block>
       <block type="text_append">
         <value name="TEXT">

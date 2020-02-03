@@ -197,6 +197,10 @@ type BlocklyWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker) as thi
         member this.RenderCode() =
           let code = generator.workspaceToCode (this.workspace)
           if notebooks.activeCell <> null then
+            //prevent overwriting markdown
+            if notebooks.activeCell.model |> JupyterlabCells.Model.Types.isMarkdownCellModel then
+                Browser.Dom.window.alert("You are calling 'Blocks to Code' on a MARKDOWN cell. Turn off notebook sync, select the CODE cell, turn sync back on, and try again." )
+            else
               notebooks.activeCell.model.value.text <-
                   code //overwrite
                   // notebooks.activeCell.model.value.text + code //append 

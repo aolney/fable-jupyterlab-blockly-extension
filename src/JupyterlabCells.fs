@@ -63,6 +63,7 @@ module Celldragutils =
 module Collapser =
     type ReactWidget = JupyterlabApputils.ReactWidget // __@jupyterlab_apputils.ReactWidget
 
+    //AMO: global export
     type [<AllowNullLiteral>] IExports =
         abstract Collapser: CollapserStatic
         abstract InputCollapser: InputCollapserStatic
@@ -128,6 +129,7 @@ module Collapser =
 module Headerfooter =
     type Widget = PhosphorWidgets.Widget // __@phosphor_widgets.Widget
 
+    //AMO: global export
     type [<AllowNullLiteral>] IExports =
         abstract CellHeader: CellHeaderStatic
         abstract CellFooter: CellFooterStatic
@@ -165,7 +167,7 @@ module Inputarea =
     // type CodeEditor = JupyterlabCodeeditor.Editor.CodeEditor // __@jupyterlab_codeeditor.CodeEditor
     type CodeEditorWrapper = JupyterlabCodeeditor.Widget.CodeEditorWrapper //  __@jupyterlab_codeeditor.CodeEditorWrapper
     type ICellModel = Model.ICellModel
-
+    //AMO: global export
     type [<AllowNullLiteral>] IExports =
         abstract InputArea: InputAreaStatic
         abstract InputPrompt: InputPromptStatic
@@ -298,6 +300,10 @@ module Model =
         abstract RawCellModel: RawCellModelStatic
         abstract MarkdownCellModel: MarkdownCellModelStatic
         abstract CodeCellModel: CodeCellModelStatic
+
+    //TODO better name
+    [<Import("*","@jupyterlab/cells")>]
+    let Types:IExports = jsNative
 
     /// The definition of a model object for a cell.
     type [<AllowNullLiteral>] ICellModel =
@@ -519,6 +525,7 @@ module Model =
 module Placeholder =
     type ReactWidget = JupyterlabApputils.ReactWidget // __@jupyterlab_apputils.ReactWidget
 
+    //AMO: Global export
     type [<AllowNullLiteral>] IExports =
         abstract Placeholder: PlaceholderStatic
         abstract InputPlaceholder: InputPlaceholderStatic
@@ -597,6 +604,7 @@ module Widget =
     type IMarkdownCellModel = Model.IMarkdownCellModel
     type IRawCellModel = Model.IRawCellModel
 
+    //AMO: global export
     type [<AllowNullLiteral>] IExports =
         abstract Cell: CellStatic
         abstract CodeCell: CodeCellStatic

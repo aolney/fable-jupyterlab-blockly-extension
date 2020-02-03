@@ -150,11 +150,14 @@ let makeCodeBlock (blockName:string) (hasInput: bool) (hasOutput: bool) =
     let userCode = block.getFieldValue("CODE").Value |> string
     let code =
       if hasInput then
-        let input = blockly?Python?valueToCode( block, "x", blockly?Python?ORDER_ATOMIC )
+        let input = blockly?Python?valueToCode( block, "INPUT", blockly?Python?ORDER_ATOMIC )
         userCode + " " + input
       else 
         userCode
-    [| code; blockly?Python?ORDER_FUNCTION_CALL |]
+    if hasOutput then
+      [| code; blockly?Python?ORDER_ATOMIC |] //Assumption is that freestyle should not invoke operator precedence at all
+    else
+      code + "\n" |> unbox
 
 //Make all varieties of code block
 makeCodeBlock "dummyOutputCodeBlock" false true
@@ -1064,7 +1067,7 @@ let toolbox =
     </category>
     <sep></sep>
     <category name="VARIABLES" colour="%{BKY_VARIABLES_HUE}" custom="VARIABLE"></category>
-    <category name="FUNCTIONS" colour="%{BKY_PROCEDURES_HUE}" custom="PROCEDURE"></category>
+    <!-- <category name="FUNCTIONS" colour="%{BKY_PROCEDURES_HUE}" custom="PROCEDURE"></category> -->
   </xml>"""
 
 

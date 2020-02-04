@@ -125,7 +125,7 @@ blockly?Blocks.["textFromFile"] <- createObj [
 // Generate Python template code
 blockly?Python.["textFromFile"] <- fun (block : Blockly.Block) -> 
   let fileName = block.getFieldValue("FILENAME").Value |> string
-  let code = "open('" + fileName + "').read()"
+  let code = "open('" + fileName + "',encoding='utf-8').read()"
   [| code; blockly?Python?ORDER_FUNCTION_CALL |]
 
 // file read block
@@ -143,7 +143,7 @@ blockly?Blocks.["readFile"] <- createObj [
 // Generate Python template code
 blockly?Python.["readFile"] <- fun (block : Blockly.Block) -> 
   let fileName = block.getFieldValue("FILENAME").Value |> string
-  let code = "open('" + fileName + "')"
+  let code = "open('" + fileName + "',encoding='utf-8')"
   [| code; blockly?Python?ORDER_FUNCTION_CALL |]
 
 

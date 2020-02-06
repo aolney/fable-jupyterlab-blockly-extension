@@ -213,8 +213,8 @@ makeImportBlock "importAs" "import" "as"
 //make from import block
 makeImportBlock "importFrom" "from" "import"
 
-/// A template for single argument function block creation (e.g. int(X)), including the code generator.
-let makeSingleArgFunctionBlock (blockName:string) (label:string) (outputType:string) (tooltip:string) (helpurl:string) (functionStr:string) =
+/// A template for variable argument function block creation (where arguments are in a list), including the code generator.
+let makeFunctionBlock (blockName:string) (label:string) (outputType:string) (tooltip:string) (helpurl:string) (functionStr:string) =
   blockly?Blocks.[blockName] <- createObj [
     "init" ==> fun () -> 
       Browser.Dom.console.log( blockName + " init")
@@ -229,8 +229,11 @@ let makeSingleArgFunctionBlock (blockName:string) (label:string) (outputType:str
     ]
   /// Generate Python template conversion code
   blockly?Python.[blockName] <- fun (block : Blockly.Block) -> 
-    let x = blockly?Python?valueToCode( block, "x", blockly?Python?ORDER_ATOMIC )
-    let code =  functionStr + "(" + x + ")"
+    // let x = blockly?Python?valueToCode( block, "x", blockly?Python?ORDER_ATOMIC )
+    // let code =  functionStr + "(" + x + ")"
+    let (args : string) = blockly?Python?valueToCode(block, "x", blockly?Python?ORDER_MEMBER) 
+    let cleanArgs = System.Text.RegularExpressions.Regex.Replace(args,"^\[|\]$" , "")
+    let code = functionStr + "(" +  cleanArgs + ")" 
     [| code; blockly?Python?ORDER_FUNCTION_CALL |]
 
 // ALREADY EXISTS
@@ -243,8 +246,26 @@ let makeSingleArgFunctionBlock (blockName:string) (label:string) (outputType:str
 //   "https://python-reference.readthedocs.io/en/latest/docs/list/sort.html"
 //   "sort"
 
+// zip
+makeFunctionBlock 
+  "zipBlock"
+  "zip"
+  "Array"
+  "Zip together two or more lists"
+  "https://docs.python.org/3.3/library/functions.html#zip"
+  "zip"
+
+// sorted
+makeFunctionBlock 
+  "sortedBlock"
+  "as sorted"
+  "Array"
+  "Sort lists of stuff"
+  "https://docs.python.org/3.3/library/functions.html#sorted"
+  "sorted"
+
 // set: TODO only accept lists, setCheck("Array")
-makeSingleArgFunctionBlock 
+makeFunctionBlock 
   "setBlock"
   "set"
   "Array"
@@ -253,7 +274,7 @@ makeSingleArgFunctionBlock
   "set"
 
 // Conversion blocks, e.g. str()
-makeSingleArgFunctionBlock 
+makeFunctionBlock 
   "boolConversion"
   "as bool"
   "Boolean"
@@ -261,7 +282,7 @@ makeSingleArgFunctionBlock
   "https://docs.python.org/3/library/stdtypes.html#boolean-values"
   "bool"
 
-makeSingleArgFunctionBlock
+makeFunctionBlock
   "strConversion"
   "as str"
   "String"
@@ -269,7 +290,7 @@ makeSingleArgFunctionBlock
   "https://docs.python.org/3/library/stdtypes.html#str"
   "str"
 
-makeSingleArgFunctionBlock
+makeFunctionBlock
   "floatConversion"
   "as float"
   "Float"
@@ -277,7 +298,7 @@ makeSingleArgFunctionBlock
   "https://docs.python.org/3/library/functions.html#float"
   "float"
 
-makeSingleArgFunctionBlock
+makeFunctionBlock
   "intConversion"
   "as int"
   "Int"
@@ -286,7 +307,7 @@ makeSingleArgFunctionBlock
   "int"
 
 // Get user input, e.g. input()
-makeSingleArgFunctionBlock
+makeFunctionBlock
   "getInput"
   "input"
   "String"
@@ -1038,6 +1059,8 @@ let toolbox =
       </block>
       <block type="lists_sort"></block>
       <block type="setBlock"></block>
+      <block type="sortedBlock"></block>
+      <block type="zipBlock"></block>
     </category>
     <category name="COLOUR" colour="%{BKY_COLOUR_HUE}">
       <block type="colour_picker"></block>

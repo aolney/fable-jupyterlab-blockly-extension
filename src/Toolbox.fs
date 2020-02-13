@@ -170,9 +170,9 @@ let makeCodeBlock (blockName:string) (hasInput: bool) (hasOutput: bool) =
     let code =
       if hasInput then
         let input = blockly?Python?valueToCode( block, "INPUT", blockly?Python?ORDER_ATOMIC )
-        userCode + " " + input
+        (userCode + " " + input).Trim()
       else 
-        userCode
+        userCode.Trim()
     if hasOutput then
       [| code; blockly?Python?ORDER_ATOMIC |] //Assumption is that freestyle should not invoke operator precedence at all
     else
@@ -245,6 +245,16 @@ let makeFunctionBlock (blockName:string) (label:string) (outputType:string) (too
 //   "Sort a list."
 //   "https://python-reference.readthedocs.io/en/latest/docs/list/sort.html"
 //   "sort"
+
+
+// dict
+makeFunctionBlock 
+  "dictBlock"
+  "dict"
+  "None"
+  "Create a dictionary from a list of tuples, e.g. [('a',1),('b',2)...]"
+  "https://docs.python.org/3/tutorial/datastructures.html#dictionaries"
+  "dict"
 
 // zip
 makeFunctionBlock 
@@ -1061,6 +1071,7 @@ let toolbox =
       <block type="setBlock"></block>
       <block type="sortedBlock"></block>
       <block type="zipBlock"></block>
+      <block type="dictBlock"></block>
     </category>
     <category name="COLOUR" colour="%{BKY_COLOUR_HUE}">
       <block type="colour_picker"></block>

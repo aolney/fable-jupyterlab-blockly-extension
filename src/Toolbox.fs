@@ -147,7 +147,7 @@ blockly?Python.["readFile"] <- fun (block : Blockly.Block) ->
   [| code; blockly?Python?ORDER_FUNCTION_CALL |]
 
 
-/// A template to create arbitrary code blocks in these dimensions: dummy/input; output/nooutput
+/// A template to create arbitrary code blocks (FREESTYLE) in these dimensions: dummy/input; output/nooutput
 let makeCodeBlock (blockName:string) (hasInput: bool) (hasOutput: bool) =
   blockly?Blocks.[blockName] <- createObj [
     "init" ==> fun () ->
@@ -324,6 +324,31 @@ makeFunctionBlock
   "Present the given prompt to the user and wait for their typed input response."
   "https://docs.python.org/3/library/functions.html#input"
   "input"
+
+// Tuple block; TODO use mutator to make variable length
+blockly?Blocks.["tupleBlock"] <- createObj [
+  "init" ==> fun () ->
+    thisBlock.appendValueInput("FIRST")
+        .setCheck(!^None)
+        .appendField(!^"(") |> ignore
+    thisBlock.appendValueInput("SECOND")
+        .setCheck(!^None)
+        .appendField(!^",") |> ignore
+    thisBlock.appendDummyInput()
+        .appendField(!^")") |> ignore
+    thisBlock.setInputsInline(true);
+    thisBlock.setOutput(true, !^None);
+    thisBlock.setColour(!^230.0);
+    thisBlock.setTooltip(!^"Use this to create a two-element tuple");
+    thisBlock.setHelpUrl(!^"https://docs.python.org/3/tutorial/datastructures.html#tuples-and-sequences");
+]
+
+/// Generate Python for tuple
+blockly?Python.["tupleBlock"] <- fun (block : Blockly.Block) -> 
+  let firstArg = blockly?Python?valueToCode(block, "FIRST", blockly?Python?ORDER_ATOMIC) 
+  let secondArg = blockly?Python?valueToCode(block, "SECOND", blockly?Python?ORDER_ATOMIC) 
+  let code = "(" +  firstArg + "," + secondArg + ")" 
+  [| code; blockly?Python?ORDER_NONE |]
 
 //TODO: 
 // ? OPTION FOR BOTH POSITION ONLY (PASS IN LIST OF ARGS) AND KEYWORD ARGUMENTS (PASS IN DICTIONARY)
@@ -1072,6 +1097,7 @@ let toolbox =
       <block type="sortedBlock"></block>
       <block type="zipBlock"></block>
       <block type="dictBlock"></block>
+      <block type="tupleBlock"></block>
     </category>
     <category name="COLOUR" colour="%{BKY_COLOUR_HUE}">
       <block type="colour_picker"></block>

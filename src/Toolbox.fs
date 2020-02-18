@@ -691,11 +691,22 @@ let makeMemberIntellisenseBlock (blockName:string) (preposition:string) (verb:st
         //restore previous member selection if possible
         let memberField = thisBlock.getField("MEMBER")
         // memberField.setValue( thisBlock?selectedMember) //OLD way; does not work with XML serialization 
-        memberField.setValue( data.[1] ) //NEW way; is deserialized from XML
+        // memberField.setValue( data.[1] ) //NEW way; is deserialized from XML
+        //prevent setting to ""
+        if data.[1] <> "" then
+          memberField.setValue( data.[1] ) //NEW way; is deserialized from XML
 
         // update tooltip
         let varName = thisBlock?varSelectionUserName(thisBlock, None) //Blockly is pretty good at recovering the variable, so we don't need to get from data
         thisBlock.setTooltip !^( varName |> getIntellisenseVarTooltip )
+
+        //TODO NOT SOLVING PROBLEM
+        //force a block rerender (blocks sometimes "click" but are offset from what they are supposed to be connected to)
+        // if thisBlock.outputConnection.targetBlock() <> null then
+        //   let (blockSvg : Blockly.BlockSvg ) = !!thisBlock.outputConnection.targetBlock()
+        //   blockSvg.render()
+        // thisBlock.workspace.sv
+        // Blockly.blockSvg.
         ()
     ]
   /// Generate Python intellisense member block conversion code

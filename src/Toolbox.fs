@@ -7,6 +7,9 @@ open Browser.Types
 open Blockly
 open JupyterlabServices.__kernel_messages.KernelMessage
 
+//TODO: 
+// - make "read file" have shadow text block rather than input field
+// - on list comprehension, have a "when" to add filtering conditions
 
 //TODO: ask fable about using jsOptions to define functions
 //trying to define block without explicitly calling constructor as above...
@@ -114,9 +117,10 @@ blockly?Python.["comprehensionForEach"] <- fun (block : Blockly.Block) ->
 blockly?Blocks.["textFromFile"] <- createObj [
   "init" ==> fun () ->
     Browser.Dom.console.log( "textFromFile" + " init")
-    thisBlock.appendDummyInput()
-      .appendField( !^"read text from file"  )
-      .appendField( !^(blockly.FieldTextInput.Create("type filename here...") :?> Blockly.Field), "FILENAME"  ) |> ignore
+    thisBlock.appendValueInput("FILENAME")
+      .setCheck(!^"String")
+      .appendField( !^"read text from file"  ) |> ignore
+      // .appendField( !^(blockly.FieldTextInput.Create("type filename here...") :?> Blockly.Field), "FILENAME"  ) |> ignore
     thisBlock.setOutput(true, !^None)
     thisBlock.setColour(!^230.0)
     thisBlock.setTooltip !^("Use this to read a text file. It will output a string." )
@@ -124,8 +128,9 @@ blockly?Blocks.["textFromFile"] <- createObj [
   ]
 // Generate Python template code
 blockly?Python.["textFromFile"] <- fun (block : Blockly.Block) -> 
-  let fileName = block.getFieldValue("FILENAME").Value |> string
-  let code = "open('" + fileName + "',encoding='utf-8').read()"
+  let fileName = blockly?Python?valueToCode( block, "FILENAME", blockly?Python?ORDER_ATOMIC )
+  // let fileName = block.getFieldValue("FILENAME").Value |> string
+  let code = "open(" + fileName + ",encoding='utf-8').read()"
   [| code; blockly?Python?ORDER_FUNCTION_CALL |]
 
 // file read block
@@ -246,6 +251,14 @@ let makeFunctionBlock (blockName:string) (label:string) (outputType:string) (too
 //   "https://python-reference.readthedocs.io/en/latest/docs/list/sort.html"
 //   "sort"
 
+// tuple
+makeFunctionBlock 
+  "tupleConstructorBlock"
+  "tuple"
+  "None"
+  "Create a tuple from a list, e.g. ['a','b'] becomes ('a','b')"
+  "https://docs.python.org/3/library/stdtypes.html#tuple"
+  "tuple"
 
 // dict
 makeFunctionBlock 
@@ -970,7 +983,13 @@ let toolbox =
     </category>
     <category name="TEXT" colour="%{BKY_TEXTS_HUE}">
       <block type="text"></block>
-      <block type="textFromFile"></block>
+      <block type="textFromFile">
+        <value name="FILENAME">
+          <shadow type="text">
+            <field name="TEXT">name of file</field>
+          </shadow>
+        </value>
+      </block>
       <block type="readFile"></block>
       <block type="text_join"></block>
       <block type="text_append">
@@ -1109,6 +1128,7 @@ let toolbox =
       <block type="zipBlock"></block>
       <block type="dictBlock"></block>
       <block type="tupleBlock"></block>
+      <block type="tupleConstructorBlock"></block>
     </category>
     <category name="COLOUR" colour="%{BKY_COLOUR_HUE}">
       <block type="colour_picker"></block>

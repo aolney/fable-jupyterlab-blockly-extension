@@ -251,6 +251,15 @@ let makeFunctionBlock (blockName:string) (label:string) (outputType:string) (too
 //   "https://python-reference.readthedocs.io/en/latest/docs/list/sort.html"
 //   "sort"
 
+// reversed
+makeFunctionBlock 
+  "reversedBlock"
+  "reversed"
+  "None"
+  "Create a reversed iterator to reverse a list or a tuple; wrap it in a new list or tuple."
+  "https://docs.python.org/3/library/functions.html#reversed"
+  "reversed"
+
 // tuple
 makeFunctionBlock 
   "tupleConstructorBlock"
@@ -1129,6 +1138,7 @@ let toolbox =
       <block type="dictBlock"></block>
       <block type="tupleBlock"></block>
       <block type="tupleConstructorBlock"></block>
+      <block type="reversedBlock"></block>
     </category>
     <category name="COLOUR" colour="%{BKY_COLOUR_HUE}">
       <block type="colour_picker"></block>

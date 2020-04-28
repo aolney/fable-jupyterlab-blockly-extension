@@ -2,6 +2,8 @@
 
 A [JupyterLab](https://jupyterlab.readthedocs.io/en/stable/) extension implementing a Blockly palette with [Fable](https://fable.io/) tooling.
 
+**NOTE: This plugin requires jupyterlab <= 1.2.6, so if you have a higher version (e.g. 2.X) you will need to execute `conda install jupyterlab=1.2.6` or similar for `pip`**
+
 
 ## Installation
 

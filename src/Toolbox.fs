@@ -110,10 +110,33 @@ blockly?Python.["comprehensionForEach"] <- fun (block : Blockly.Block) ->
   let code = yieldValue + " for " + var + " in " + list
   [| code; blockly?Python?ORDER_ATOMIC |] //TODO: COMPREHENSION PRECEDENCE IS ADDING () NESTING; SEE SCREENSHOT; TRY ORDER NONE?
 
+// with as block
+blockly?Blocks.["withAs"] <- createObj [
+  "init" ==> fun () ->
+    Browser.Dom.console.log( "withAs" + " init")
+    thisBlock.appendValueInput("EXPRESSION")
+      .setCheck(!^None)
+      .appendField( !^"with"  ) |> ignore
+    thisBlock.appendDummyInput()
+      .appendField( !^"as"  ) 
+      .appendField( !^(blockly.FieldVariable.Create("item") :?> Blockly.Field), "TARGET"  ) |> ignore
+    thisBlock.appendStatementInput("SUITE")
+      .setCheck(!^None) |> ignore
+    thisBlock.setInputsInline true |> ignore
+    thisBlock.setColour(!^230.0)
+    thisBlock.setTooltip !^("Use this to open resources (usually file-type) in a way that automatically handles errors and disposes of them when done. May not be supported by all libraries." )
+    thisBlock.setHelpUrl !^"https://docs.python.org/3/reference/compound_stmts.html#with"
+  ]
+blockly?Python.["withAs"] <- fun (block : Blockly.Block) -> 
+  let expressionCode = blockly?Python?valueToCode( block, "EXPRESSION", blockly?Python?ORDER_ATOMIC ) |> string
+  let targetCode = blockly?Python?variableDB_?getName( block.getFieldValue("TARGET").Value |> string, blockly?Variables?NAME_TYPE) |> string
+  let suiteCode = blockly?Python?statementToCode( block, "SUITE" ) //|| blockly?Python?PASS 
+  let code = "with " + expressionCode + " as " + targetCode + ":\n" + suiteCode.ToString()
+  code
+  //[| code; blockly?Python?ORDER_ATOMIC |] 
 
 
-
-// file read block
+// TEXT file read block
 blockly?Blocks.["textFromFile"] <- createObj [
   "init" ==> fun () ->
     Browser.Dom.console.log( "textFromFile" + " init")
@@ -133,7 +156,7 @@ blockly?Python.["textFromFile"] <- fun (block : Blockly.Block) ->
   let code = "open(" + fileName + ",encoding='utf-8').read()"
   [| code; blockly?Python?ORDER_FUNCTION_CALL |]
 
-// file read block
+// GENERAL file read block
 blockly?Blocks.["readFile"] <- createObj [
   "init" ==> fun () ->
     Browser.Dom.console.log( "readFile" + " init")
@@ -992,14 +1015,6 @@ let toolbox =
     </category>
     <category name="TEXT" colour="%{BKY_TEXTS_HUE}">
       <block type="text"></block>
-      <block type="textFromFile">
-        <value name="FILENAME">
-          <shadow type="text">
-            <field name="TEXT">name of file</field>
-          </shadow>
-        </value>
-      </block>
-      <block type="readFile"></block>
       <block type="text_join"></block>
       <block type="text_append">
         <value name="TEXT">
@@ -1187,6 +1202,18 @@ let toolbox =
       </block>
       <block type="strConversion">
       </block>
+    </category>
+    <category name="I/O" colour="190">
+      <block type="withAs">
+      </block>
+      <block type="textFromFile">
+        <value name="FILENAME">
+          <shadow type="text">
+            <field name="TEXT">name of file</field>
+          </shadow>
+        </value>
+      </block>
+      <block type="readFile"></block>
     </category>
     <sep></sep>
     <category name="VARIABLES" colour="%{BKY_VARIABLES_HUE}" custom="VARIABLE"></category>

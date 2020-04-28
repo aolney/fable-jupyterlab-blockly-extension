@@ -122,6 +122,8 @@ blockly?Blocks.["withAs"] <- createObj [
       .appendField( !^(blockly.FieldVariable.Create("item") :?> Blockly.Field), "TARGET"  ) |> ignore
     thisBlock.appendStatementInput("SUITE")
       .setCheck(!^None) |> ignore
+    thisBlock.setNextStatement true
+    thisBlock.setPreviousStatement true
     thisBlock.setInputsInline true |> ignore
     thisBlock.setColour(!^230.0)
     thisBlock.setTooltip !^("Use this to open resources (usually file-type) in a way that automatically handles errors and disposes of them when done. May not be supported by all libraries." )

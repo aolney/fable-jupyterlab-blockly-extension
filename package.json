@@ -1,6 +1,6 @@
 {
   "name": "@aolney/fable-jupyterlab-blockly-extension",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "description": "An JupyterLab extension for Blockly with Fable tooling",
   "keywords": [
     "jupyter",

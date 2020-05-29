@@ -350,7 +350,7 @@ makeFunctionBlock
 makeFunctionBlock
   "floatConversion"
   "as float"
-  "Float"
+  "Number"
   "Convert something to Float."
   "https://docs.python.org/3/library/functions.html#float"
   "float"
@@ -358,7 +358,7 @@ makeFunctionBlock
 makeFunctionBlock
   "intConversion"
   "as int"
-  "Int"
+  "Number" 
   "Convert something to Int."
   "https://docs.python.org/3/library/functions.html#int"
   "int"

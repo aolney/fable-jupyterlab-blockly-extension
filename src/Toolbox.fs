@@ -243,6 +243,28 @@ makeImportBlock "importAs" "import" "as"
 //make from import block
 makeImportBlock "importFrom" "from" "import"
 
+/// indexer block
+blockly?Blocks.[ "indexer" ] <- createObj [
+  "init" ==> fun () -> 
+    thisBlock.appendValueInput("INDEX")
+      .appendField( !^(blockly.FieldVariable.Create("index") :?> Blockly.Field), "VAR"  )
+      .appendField( !^"["  ) |> ignore          
+    thisBlock.appendDummyInput()
+      .appendField( !^"]") |> ignore
+    thisBlock.setInputsInline true
+    thisBlock.setOutput true
+    thisBlock.setColour !^230.0
+    thisBlock.setTooltip !^"Gets an item from the variable at a given index. Not supported for all variables."
+    thisBlock.setHelpUrl !^"https://docs.python.org/3/reference/datamodel.html#object.__getitem__"
+  ]
+/// Generate Python import code
+blockly?Python.[ "indexer" ] <- fun (block : Blockly.Block) -> 
+  let varName = blockly?Python?variableDB_?getName( block.getFieldValue("VAR").Value |> string, blockly?Variables?NAME_TYPE);
+  let input = blockly?Python?valueToCode( block, "INDEX", blockly?Python?ORDER_ATOMIC )
+  let code =  varName + "[" + input + "]" + "\n"
+  code
+
+
 /// A template for variable argument function block creation (where arguments are in a list), including the code generator.
 let makeFunctionBlock (blockName:string) (label:string) (outputType:string) (tooltip:string) (helpurl:string) (functionStr:string) =
   blockly?Blocks.[blockName] <- createObj [
@@ -843,6 +865,13 @@ blockly?Variables?flyoutCategoryBlocks <- fun (workspace : Blockly.Workspace) ->
     if blockly?Blocks?varCreateObject then
       let xml = Blockly.Utils.xml.createElement("block") 
       xml.setAttribute("type", "varCreateObject")
+      xml.setAttribute("gap", if blockly?Blocks?varCreateObject then "20" else "8")
+      xml.appendChild( Blockly.variables.generateVariableFieldDom(lastVarFieldXml)) |> ignore
+      xmlList.Add(xml)
+    //variable indexer block
+    if blockly?Blocks?indexer then
+      let xml = Blockly.Utils.xml.createElement("block") 
+      xml.setAttribute("type", "indexer")
       xml.setAttribute("gap", if blockly?Blocks?varCreateObject then "20" else "8")
       xml.appendChild( Blockly.variables.generateVariableFieldDom(lastVarFieldXml)) |> ignore
       xmlList.Add(xml)

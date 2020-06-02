@@ -247,7 +247,7 @@ makeImportBlock "importFrom" "from" "import"
 blockly?Blocks.[ "indexer" ] <- createObj [
   "init" ==> fun () -> 
     thisBlock.appendValueInput("INDEX")
-      .appendField( !^(blockly.FieldVariable.Create("index") :?> Blockly.Field), "VAR"  )
+      .appendField( !^(blockly.FieldVariable.Create("{dictVariable}") :?> Blockly.Field), "VAR"  )
       .appendField( !^"["  ) |> ignore          
     thisBlock.appendDummyInput()
       .appendField( !^"]") |> ignore
@@ -261,8 +261,8 @@ blockly?Blocks.[ "indexer" ] <- createObj [
 blockly?Python.[ "indexer" ] <- fun (block : Blockly.Block) -> 
   let varName = blockly?Python?variableDB_?getName( block.getFieldValue("VAR").Value |> string, blockly?Variables?NAME_TYPE);
   let input = blockly?Python?valueToCode( block, "INDEX", blockly?Python?ORDER_ATOMIC )
-  let code =  varName + "[" + input + "]" + "\n"
-  code
+  let code =  varName + "[" + input + "]" //+ "\n"
+  [| code; blockly?Python?ORDER_ATOMIC |]
 
 
 /// A template for variable argument function block creation (where arguments are in a list), including the code generator.
@@ -524,6 +524,10 @@ let RequestIntellisenseVariable(block : Blockly.Block) ( parentName : string ) =
     if shouldGetChildren then
       let! completions = GetKernelCompletion( parentName + "." ) //all completions that follow "name."
       let! inspections = 
+        //dataframe kludge; seems to fail right after inspection stage (TODO: doesn't work; seems to put everything into fields not functions)
+        // if parent.Info.StartsWith("Signature: DataFrame") then
+        //   Promise.lift( Array.zeroCreate completions.Length)
+        // else
         // if not <| parent.isInstance then //No caching; see above
         completions
         |> Array.map( fun completion ->  GetKernalInspection(parentName + "." + completion) ) //all introspections of name.completion
@@ -869,12 +873,12 @@ blockly?Variables?flyoutCategoryBlocks <- fun (workspace : Blockly.Workspace) ->
       xml.appendChild( Blockly.variables.generateVariableFieldDom(lastVarFieldXml)) |> ignore
       xmlList.Add(xml)
     //variable indexer block
-    if blockly?Blocks?indexer then
-      let xml = Blockly.Utils.xml.createElement("block") 
-      xml.setAttribute("type", "indexer")
-      xml.setAttribute("gap", if blockly?Blocks?varCreateObject then "20" else "8")
-      xml.appendChild( Blockly.variables.generateVariableFieldDom(lastVarFieldXml)) |> ignore
-      xmlList.Add(xml)
+    // if blockly?Blocks?indexer then
+    //   let xml = Blockly.Utils.xml.createElement("block") 
+    //   xml.setAttribute("type", "indexer")
+    //   xml.setAttribute("gap", if blockly?Blocks?varCreateObject then "20" else "8")
+    //   xml.appendChild( Blockly.variables.generateVariableFieldDom(lastVarFieldXml)) |> ignore
+    //   xmlList.Add(xml)
     //variable get block, one per variable: TODO - WHY DO WE NEED ONE PER VAR? LESS CLUTTER TO HAVE ONE WITH DROPDOWN
     if blockly?Blocks?variables_get then
       //for some reason the original "directly translated" code is passing the workspace into sort instead of the variables
@@ -1170,6 +1174,7 @@ let toolbox =
           </block>
         </value>
       </block>
+      <block type="indexer"></block>
       <block type="lists_split">
         <value name="DELIM">
           <shadow type="text">

@@ -459,9 +459,11 @@ let GetKernelCompletion( queryString : string ) =
   match GetKernel() with
   | Some(_, kernel) -> 
     promise {
-      let! reply = kernel.requestComplete( !!{| code = queryString; cursor_pos = queryString.Length |} )
-      let content: ICompleteReply = unbox reply.content
-      return content.matches.ToArray()
+      try
+        let! reply = kernel.requestComplete( !!{| code = queryString; cursor_pos = queryString.Length |} )
+        let content: ICompleteReply = unbox reply.content
+        return content.matches.ToArray()
+      with _ -> return [| queryString + " is unavailable" |]
     }
   | None -> Promise.reject "no kernel" // () //Promise.lift( [||])
 
@@ -470,18 +472,20 @@ let GetKernalInspection( queryString : string ) =
   match GetKernel() with 
   | Some( widget, kernel ) ->
     promise {
-      let! reply = kernel.requestInspect( !!{| code = queryString; cursor_pos = queryString.Length; detail_level = 0 |} )
-      //formatting the reply is involved because it has some kind of funky ascii encoding
-      let content: IInspectReply = unbox reply.content
-      if content.found then
-        let mimeType = widget.content.rendermime.preferredMimeType( unbox content.data);
-        let renderer = widget.content.rendermime.createRenderer( mimeType.Value )
-        let payload : PhosphorCoreutils.ReadonlyJSONObject = !!content.data
-        let model= JupyterlabRendermime.Mimemodel.Types.MimeModel.Create( !!{| data = Some(payload)  |} )
-        let! _ = renderer.renderModel(model) 
-        return renderer.node.innerText
-      else
-        return "UNDEFINED" //we check for this case below
+      try
+        let! reply = kernel.requestInspect( !!{| code = queryString; cursor_pos = queryString.Length; detail_level = 0 |} )
+        //formatting the reply is involved because it has some kind of funky ascii encoding
+        let content: IInspectReply = unbox reply.content
+        if content.found then
+          let mimeType = widget.content.rendermime.preferredMimeType( unbox content.data);
+          let renderer = widget.content.rendermime.createRenderer( mimeType.Value )
+          let payload : PhosphorCoreutils.ReadonlyJSONObject = !!content.data
+          let model= JupyterlabRendermime.Mimemodel.Types.MimeModel.Create( !!{| data = Some(payload)  |} )
+          let! _ = renderer.renderModel(model) 
+          return renderer.node.innerText
+        else
+          return "UNDEFINED" //we check for this case below
+      with _ ->  return queryString + " is unavailable" //better way to handle exceptions?
     }
   | None -> Promise.reject "no kernel"  //()
 
@@ -506,55 +510,64 @@ let RequestIntellisenseVariable(block : Blockly.Block) ( parentName : string ) =
   // if not <| intellisenseLookup.ContainsKey( name ) then //No caching; see above
   // Update the intellisenseLookup asynchronously. First do an info lookup. If var is not an instance type, continue to doing tooltip lookup
   promise {
-    let! parentInspection = GetKernalInspection( parentName )
-    let parent = { Name=parentName;  Info=parentInspection; isFunction=isFunction(parentInspection); isClass=isClass(parentInspection) }
-    // V2 store the name/docstring pair. This is always overwritten(*Updating*).
-    // if not <| nameDocMap.ContainsKey( parentName ) then nameDocMap.Add(parentName,parentInspection) else nameDocMap.[parentName] <- parentInspection
+    try
+      let! parentInspection = GetKernalInspection( parentName )
+      let parent = { Name=parentName;  Info=parentInspection; isFunction=isFunction(parentInspection); isClass=isClass(parentInspection) }
+      // V2 store the name/docstring pair. This is always overwritten(*Updating*).
+      // if not <| nameDocMap.ContainsKey( parentName ) then nameDocMap.Add(parentName,parentInspection) else nameDocMap.[parentName] <- parentInspection
 
-    // V2 only search for completions if the docstring has not previously been stored
-    // if not <| docIntellisenseMap.ContainsKey( parentInspection ) then
-      // promise {  //if promise ce absent here, then preceding conditional is not transpiled   
-
-    // V3 only update completions if cached parent type has changed or has no children OR if there is nothing in the cache.
-    let shouldGetChildren =
-      match intellisenseLookup.TryGetValue(parent.Name) with
-      | true, cached -> if cached.VariableEntry.Info <> parent.Info || cached.ChildEntries.Length = 0 then true else false
-      | false, _ -> true
-
-    if shouldGetChildren then
-      let! completions = GetKernelCompletion( parentName + "." ) //all completions that follow "name."
-      let! inspections = 
-        //dataframe kludge; seems to fail right after inspection stage (TODO: doesn't work; seems to put everything into fields not functions)
-        // if parent.Info.StartsWith("Signature: DataFrame") then
-        //   Promise.lift( Array.zeroCreate completions.Length)
-        // else
-        // if not <| parent.isInstance then //No caching; see above
-        completions
-        |> Array.map( fun completion ->  GetKernalInspection(parentName + "." + completion) ) //all introspections of name.completion
-        |> Promise.Parallel
-        // else
-        //   Promise.lift [||] //No caching; see above
-      let children = 
-          Array.zip completions inspections 
-          |> Array.map( fun (completion,inspection) -> 
-            {Name=completion; Info=inspection; isFunction=isFunction(inspection); isClass=isClass(inspection) }
-          ) 
-      let intellisenseVariable = { VariableEntry=parent; ChildEntries=children}
-      // Store so we can synchronously find results later; if we have seen this var before, overwrite.
-      if intellisenseLookup.ContainsKey( parentName ) then
-        intellisenseLookup.[parentName] <- intellisenseVariable
-      else
-        intellisenseLookup.Add( parentName, intellisenseVariable)
-
-      // V2 - never overwritten
+      // V2 only search for completions if the docstring has not previously been stored
       // if not <| docIntellisenseMap.ContainsKey( parentInspection ) then
-      // docIntellisenseMap.Add( parentInspection, intellisenseVariable)
-        // } |> Promise.start
-    else
-      Browser.Dom.console.log("Not refreshing intellisense for " + parent.Name)
+        // promise {  //if promise ce absent here, then preceding conditional is not transpiled   
+
+      // V3 only update completions if cached parent type has changed or has no children OR if there is nothing in the cache.
+      let shouldGetChildren =
+        match intellisenseLookup.TryGetValue(parent.Name) with
+        | true, cached -> if cached.VariableEntry.Info <> parent.Info || cached.ChildEntries.Length = 0 then true else false
+        | false, _ -> true
+          
+      if shouldGetChildren then
+        let! completions = GetKernelCompletion( parentName + "." )  //all completions that follow "name."
+
+        //dataframe kludge; TODO not sure why this is necessary
+        //if dataframe, filter members leading with _ ; else filter nothing
+        let safeCompletions =
+          completions
+          |> Array.filter( fun s -> 
+            if parent.Info.StartsWith("Signature: DataFrame") then
+              not <| s.StartsWith("_")
+            else
+              true
+              )      
+        
+        let! inspections = 
+          // if not <| parent.isInstance then //No caching; see above
+          safeCompletions
+          |> Array.map( fun completion ->  GetKernalInspection(parentName + "." + completion) ) //all introspections of name.completion
+          |> Promise.Parallel
+          // else
+          //   Promise.lift [||] //No caching; see above
+        let children = 
+            Array.zip safeCompletions inspections 
+            |> Array.map( fun (completion,inspection) -> 
+              {Name=completion; Info=inspection; isFunction=isFunction(inspection); isClass=isClass(inspection) }
+            ) 
+        let intellisenseVariable = { VariableEntry=parent; ChildEntries=children}
+        // Store so we can synchronously find results later; if we have seen this var before, overwrite.
+        if intellisenseLookup.ContainsKey( parentName ) then
+          intellisenseLookup.[parentName] <- intellisenseVariable
+        else
+          intellisenseLookup.Add( parentName, intellisenseVariable)
+
+        // V2 - never overwritten
+        // if not <| docIntellisenseMap.ContainsKey( parentInspection ) then
+        // docIntellisenseMap.Add( parentInspection, intellisenseVariable)
+          // } |> Promise.start
+      else
+        Browser.Dom.console.log("Not refreshing intellisense for " + parent.Name)
 
     //Call update event (sometimes fails for unknown reasons)
-    try 
+    // try 
       let intellisenseUpdateEvent = Blockly.events.Change.Create(block, "field", "VAR", 0, 1) 
       intellisenseUpdateEvent.group <- "INTELLISENSE"
       Browser.Dom.console.log( "event status is " + Blockly.events?disabled_ )

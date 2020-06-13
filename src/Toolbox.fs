@@ -456,6 +456,7 @@ let GetKernel() =
 
 /// Get a completion (tab+tab) using the kernel. Typically this will be following a "." but it could also be to match a known identifier against a few initial letters.
 let GetKernelCompletion( queryString : string ) =
+  // Browser.Dom.console.log("Requesting completion for: " + queryString)
   match GetKernel() with
   | Some(_, kernel) -> 
     promise {
@@ -467,27 +468,100 @@ let GetKernelCompletion( queryString : string ) =
     }
   | None -> Promise.reject "no kernel" // () //Promise.lift( [||])
 
+
+///Timeout mojo for kernel inspections
+[<Emit("Promise.race($0)")>]
+let race (pr: seq<JS.Promise<'T>>): JS.Promise<'T> = jsNative
+//perhaps b/c of promise.all, this doesn't work; just waits until timeout triggers and then fails
+let requestInspectTimeout( queryString : string) = Promise.create(fun ok er ->
+            JS.setTimeout (fun () -> er( failwith ("timeout:" + queryString ) )) 100 (* ms *) |> ignore
+        )
 /// Get an inspection (shift+tab) using the kernel. AFAIK this only works after a complete known identifier.
 let GetKernalInspection( queryString : string ) =
+  Browser.Dom.console.log("Requesting inspection for: " + queryString)
+  // if queryString = "dataframe.style" then
+  //   Browser.Dom.console.log("stop")
   match GetKernel() with 
   | Some( widget, kernel ) ->
     promise {
-      try
-        let! reply = kernel.requestInspect( !!{| code = queryString; cursor_pos = queryString.Length; detail_level = 0 |} )
+      try 
+        let! reply =
+          race([
+            kernel.requestInspect( !!{| code = queryString; cursor_pos = queryString.Length; detail_level = 0 |} ); 
+            Promise.sleep(5000) |> Promise.bind( fun () -> 
+              promise{ 
+                let msg : IInspectReplyMsg = 
+                  createObj [
+                    "content" ==> createObj [
+                          "status" ==> "error"
+                          "metadata" ==> null
+                          "found" ==> false
+                          "data" ==> null //TODO put exception payload here?
+                      ]           
+                  ] |> unbox
+                return msg 
+              } 
+            )
+            // doesn't currently work, but might be made to work as alternative to the above
+            // requestInspectTimeout( queryString )
+          ])
+          //This doesn't work becasue "style" doesn't fail - it just never resolves; https://github.com/fable-compiler/fable-promise/blob/master/tests/PromiseTests.fs
+          // kernel.requestInspect( !!{| code = queryString; cursor_pos = queryString.Length; detail_level = 0 |} ) //|> Promise.catch( fun ex -> ex.Message) //
+          // |> Promise.catchBind( fun ex -> 
+          //   promise{ 
+          //     let msg : IInspectReplyMsg = 
+          //       createObj [
+          //         "content" ==> createObj [
+          //               "status" ==> "error"
+          //               "metadata" ==> null
+          //               "found" ==> false
+          //               "data" ==> null //TODO put exception payload here?
+          //           ]
+          //         // "channel" ==> "shell"
+          //         // "header" ==> createObj [
+          //         //       "date" ==> "foo"
+          //         //       "version" ==> "1"
+          //         //       "session" ==> "1"
+          //         //       "msg_id" ==> "1"
+          //         //       "msg_type" ==> "inspect_reply"
+          //         //       "username" ==> "foo"
+          //         //   ]
+          //         // "parent_header" ==> createObj [
+          //         //       "date" ==> "foo"
+          //         //       "version" ==> "1"
+          //         //       "session" ==> "1"
+          //         //       "msg_id" ==> "1"
+          //         //       "msg_type" ==> "inspect_request"
+          //         //       "username" ==> "foo"
+          //         //   ]
+          //         // "metadata" ==> null
+          //       ] |> unbox
+          //     return msg 
+          //     } 
+          //   ) 
+
         //formatting the reply is involved because it has some kind of funky ascii encoding
         let content: IInspectReply = unbox reply.content
+        // if queryString = "dataframe.style" then
+        //   Browser.Dom.console.log("stop")
         if content.found then
           let mimeType = widget.content.rendermime.preferredMimeType( unbox content.data);
           let renderer = widget.content.rendermime.createRenderer( mimeType.Value )
           let payload : PhosphorCoreutils.ReadonlyJSONObject = !!content.data
           let model= JupyterlabRendermime.Mimemodel.Types.MimeModel.Create( !!{| data = Some(payload)  |} )
           let! _ = renderer.renderModel(model) 
+          Browser.Dom.console.log(queryString + ":found" )
           return renderer.node.innerText
         else
+          Browser.Dom.console.log(queryString + ":UNDEFINED" )
           return "UNDEFINED" //we check for this case below
-      with _ ->  return queryString + " is unavailable" //better way to handle exceptions?
+      with _ ->  
+        Browser.Dom.console.log(queryString + ":UNAVAILABLE" )
+        return queryString + " is unavailable" //better way to handle exceptions?
     }
-  | None -> Promise.reject "no kernel"  //()
+  | None -> 
+    Browser.Dom.console.log("NOKERNEL" )
+    Promise.reject "no kernel"  //()
 
 /// Store results of resolved promises so that future synchronous calls can access. Keyed on variable name
 let intellisenseLookup = new System.Collections.Generic.Dictionary<string,IntellisenseVariable>()
@@ -533,18 +607,35 @@ let RequestIntellisenseVariable(block : Blockly.Block) ( parentName : string ) =
         //if dataframe, filter members leading with _ ; else filter nothing
         let safeCompletions =
           completions
+          //|> Array.truncate 169 //100 works, 150 works, 168 (std) works, 169 (style) fails --> no GUI intellisense either, 170 fails, 172 fails, 174 fails, 175 (T) fails, 200 fails
           |> Array.filter( fun s -> 
             if parent.Info.StartsWith("Signature: DataFrame") then
-              not <| s.StartsWith("_")
+              not <| s.StartsWith("_") //&&  not <| s.StartsWith("style")
             else
               true
               )      
         
+        //Fails the same way 6/11/20
+        // let completionPromises = new ResizeArray<JS.Promise<string>>()
+        // for completion in safeCompletions do 
+        //   completionPromises.Add( GetKernalInspection(parentName + "." + completion) )
+
         let! inspections = 
           // if not <| parent.isInstance then //No caching; see above
+          //Fails the same way 6/11/20
+          // completionPromises |> Promise.Parallel
+
+          //Suddenly started failing 6/11/20
           safeCompletions
           |> Array.map( fun completion ->  GetKernalInspection(parentName + "." + completion) ) //all introspections of name.completion
           |> Promise.Parallel
+
+          //Fails the same way 6/11/20
+          // [| 
+          //   for completion in safeCompletions do 
+          //     yield GetKernalInspection(parentName + "." + completion)  
+          // |] |> Promise.all
+          
           // else
           //   Promise.lift [||] //No caching; see above
         let children = 
@@ -598,14 +689,16 @@ let RequestIntellisenseVariable(block : Blockly.Block) ( parentName : string ) =
 //   //We can get a list of variables by accessing the workspace. The last variable created is the last element in the list returned.
 //   let lastVar = block.workspace.getAllVariables() |> Seq.last
 let requestAndStubOptions (block : Blockly.Block) ( varName : string ) =
-  if varName <> "" then
+  if varName <> "" && not <| block.isInFlyout then //flyout restriction prevents triple requests for intellisense blocks in flyout
     //initiate an intellisense request asynchronously
     varName |> RequestIntellisenseVariable block
   //return an option stub while we wait
-  if varName <> "" && varName |> intellisenseLookup.ContainsKey then
+  if block.isInFlyout then
+    [| [| " "; " " |] |]
+  elif varName <> "" && varName |> intellisenseLookup.ContainsKey then
       [| [| "!Waiting for kernel to respond with options."; "!Waiting for kernel to respond with options." |] |]
-    else
-      [| [| "!Not defined until you execute code."; "!Not defined until you execute code." |] |]
+  else
+    [| [| "!Not defined until you execute code."; "!Not defined until you execute code." |] |]
 
 let getIntellisenseMemberOptions(memberSelectionFunction : IntellisenseEntry -> bool) ( varName : string ) =
   match  varName |> intellisenseLookup.TryGetValue with

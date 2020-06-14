@@ -478,7 +478,7 @@ let requestInspectTimeout( queryString : string) = Promise.create(fun ok er ->
         )
 /// Get an inspection (shift+tab) using the kernel. AFAIK this only works after a complete known identifier.
 let GetKernalInspection( queryString : string ) =
-  Browser.Dom.console.log("Requesting inspection for: " + queryString)
+  // Browser.Dom.console.log("Requesting inspection for: " + queryString)
   // if queryString = "dataframe.style" then
   //   Browser.Dom.console.log("stop")
   match GetKernel() with 
@@ -488,7 +488,7 @@ let GetKernalInspection( queryString : string ) =
         let! reply =
           race([
             kernel.requestInspect( !!{| code = queryString; cursor_pos = queryString.Length; detail_level = 0 |} ); 
-            Promise.sleep(5000) |> Promise.bind( fun () -> 
+            Promise.sleep(10000) |> Promise.bind( fun () -> //was 5000 but numpy was possibly timing out, so extended
               promise{ 
                 let msg : IInspectReplyMsg = 
                   createObj [
@@ -550,7 +550,7 @@ let GetKernalInspection( queryString : string ) =
           let payload : PhosphorCoreutils.ReadonlyJSONObject = !!content.data
           let model= JupyterlabRendermime.Mimemodel.Types.MimeModel.Create( !!{| data = Some(payload)  |} )
           let! _ = renderer.renderModel(model) 
-          Browser.Dom.console.log(queryString + ":found" )
+          // Browser.Dom.console.log(queryString + ":found" )
           return renderer.node.innerText
         else
           Browser.Dom.console.log(queryString + ":UNDEFINED" )

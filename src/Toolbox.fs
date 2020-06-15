@@ -486,27 +486,28 @@ let GetKernalInspection( queryString : string ) =
     promise {
       try 
         let! reply =
-          race([
-            kernel.requestInspect( !!{| code = queryString; cursor_pos = queryString.Length; detail_level = 0 |} ); 
-            Promise.sleep(10000) |> Promise.bind( fun () -> //was 5000 but numpy was possibly timing out, so extended
-              promise{ 
-                let msg : IInspectReplyMsg = 
-                  createObj [
-                    "content" ==> createObj [
-                          "status" ==> "error"
-                          "metadata" ==> null
-                          "found" ==> false
-                          "data" ==> null //TODO put exception payload here?
-                      ]           
-                  ] |> unbox
-                return msg 
-              } 
-            )
-            // doesn't currently work, but might be made to work as alternative to the above
-            // requestInspectTimeout( queryString )
-          ])
+          //timeouts work but are problematic b/c we never know how long to make them
+          // race([
+          //   kernel.requestInspect( !!{| code = queryString; cursor_pos = queryString.Length; detail_level = 0 |} ); 
+          //   Promise.sleep(10000) |> Promise.bind( fun () -> //was 5000 but numpy was possibly timing out, so extended to 10000; that still timed out when there were many blocks in a single cell
+          //     promise{ 
+          //       let msg : IInspectReplyMsg = 
+          //         createObj [
+          //           "content" ==> createObj [
+          //                 "status" ==> "error"
+          //                 "metadata" ==> null
+          //                 "found" ==> false
+          //                 "data" ==> null //TODO put exception payload here?
+          //             ]           
+          //         ] |> unbox
+          //       return msg 
+          //     } 
+          //   )
+          //   // doesn't currently work, but might be made to work as alternative to the above
+          //   // requestInspectTimeout( queryString )
+          // ])
           //This doesn't work becasue "style" doesn't fail - it just never resolves; https://github.com/fable-compiler/fable-promise/blob/master/tests/PromiseTests.fs
-          // kernel.requestInspect( !!{| code = queryString; cursor_pos = queryString.Length; detail_level = 0 |} ) //|> Promise.catch( fun ex -> ex.Message) //
+          kernel.requestInspect( !!{| code = queryString; cursor_pos = queryString.Length; detail_level = 0 |} ) 
           // |> Promise.catchBind( fun ex -> 
           //   promise{ 
           //     let msg : IInspectReplyMsg = 
@@ -610,7 +611,7 @@ let RequestIntellisenseVariable(block : Blockly.Block) ( parentName : string ) =
           //|> Array.truncate 169 //100 works, 150 works, 168 (std) works, 169 (style) fails --> no GUI intellisense either, 170 fails, 172 fails, 174 fails, 175 (T) fails, 200 fails
           |> Array.filter( fun s -> 
             if parent.Info.StartsWith("Signature: DataFrame") then
-              not <| s.StartsWith("_") //&&  not <| s.StartsWith("style")
+              not <| s.StartsWith("_") &&  not <| s.StartsWith("style") //TODO: kludge for dataframe.style since race above doesn't always work
             else
               true
               )      

@@ -6,3 +6,5 @@ Fable.Browser.Css
 Fable.Fetch
 Fable.React
 Fable.Promise
+Thoth.Json
+Thoth.Fetch

@@ -26,6 +26,7 @@
     <Compile Include="JupyterlabNotebook.fs" />
     <Compile Include="JupyterlabApplication.fs" />
     <Compile Include="Blockly.fs" />
+    <Compile Include="Logging.fs" />
     <Compile Include="Toolbox.fs" />
     <Compile Include="index.fs" />
   </ItemGroup>

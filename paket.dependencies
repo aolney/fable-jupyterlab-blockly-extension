@@ -10,3 +10,5 @@ nuget Fable.Browser.Css
 nuget Fable.Fetch
 nuget Fable.React
 nuget Fable.Promise
+nuget Thoth.Json >= 4.0.0
+nuget Thoth.Fetch >= 2.0.0

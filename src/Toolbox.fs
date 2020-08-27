@@ -34,7 +34,6 @@ open JupyterlabServices.__kernel_messages.KernelMessage
       // this.setHelpUrl !^"https://docs.python.org/3/reference/import.html"
   //)
 
-
 /// Emit "this" typed to Block as an interop workaround
 [<Emit("this")>]
 let thisBlock : Blockly.Block = jsNative

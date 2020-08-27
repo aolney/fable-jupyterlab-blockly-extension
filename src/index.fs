@@ -104,12 +104,15 @@ type BlocklyWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker) as thi
                 let messageType = args.header.msg_type.ToString()
                 if messageType = "execute_input" then
                     Browser.Dom.console.log ("kernel executed code, updating intellisense")
+                    Logging.LogToServer( Logging.JupyterLogEntry082720.Create "execute-code" (args.content?code |> Some) )
                     Toolbox.UpdateAllIntellisense()
                 true)
 
         /// When active cell in JLab changes, try to update the blocks workspace
         member this.onActiveCellChanged =
           PhosphorSignaling.Slot<INotebookTracker, Cell>(fun sender args ->
+            //log the active cell change
+            Logging.LogToServer( Logging.JupyterLogEntry082720.Create "active-cell-change" None )
             let syncCheckbox = document.getElementById("syncCheckbox")
             let (isChecked : bool) = syncCheckbox?``checked`` |> unbox //checked is a f# reserved keyword
             if isChecked && notebooks.activeCell <> null then
@@ -157,6 +160,22 @@ type BlocklyWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker) as thi
                     )
             console.log ("blockly palette initialized")
 
+            ///Add listeners for logging; see https://developers.google.com/blockly/guides/configure/web/events
+            let logListener = System.Func<Blockly.Events.Abstract__Class,unit>(fun e ->
+              //for ui, get fine grain type; for var, get varId; everything else is event type and block id
+              //a bit ugly b/c fable will not allow type tests against foreign interface: https://github.com/fable-compiler/Fable/issues/1580
+              let evt,id =
+                //ui and block change have `element` ; var changes have `varId`
+                match e?element=null,e?varId=null with
+                | true,true -> e?``type``,e?blockId
+                | false,true -> e?element,e?blockId
+                | true,false -> e?``type``,e?varId
+                | false,false -> e?``type``,e?blockId //this is impossible; take default case
+              Logging.LogToServer( Logging.BlocklyLogEntry082720.Create evt id )
+            )
+            this.workspace.addChangeListener(logListener)
+
+
         /// Resize blockly when widget resizes
         override this.onResize( msg : PhosphorWidgets.Widget.ResizeMessage ) =
           let blocklyDiv = document.getElementById("blocklyDiv")
@@ -184,7 +203,9 @@ type BlocklyWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker) as thi
             try
               clearBlocks()
               match xmlStringOption with
-              | Some(xmlString) -> Toolbox.decodeWorkspace ( xmlString )
+              | Some(xmlString) -> 
+                    Toolbox.decodeWorkspace ( xmlString )
+                    Logging.LogToServer( Logging.JupyterLogEntry082720.Create "xml-to-blocks"  ( xmlString |> Some ) )
               | None -> ()
             with
             | e -> 
@@ -206,8 +227,10 @@ type BlocklyWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker) as thi
                   // notebooks.activeCell.model.value.text + code //append 
                   + "\n#" + Toolbox.encodeWorkspace()  //workspace as comment
               console.log ("wrote to active cell:\n" + code + "\n")
+              Logging.LogToServer( Logging.JupyterLogEntry082720.Create "blocks-to-code"  ( notebooks.activeCell.model.value.text |> Some) )
           else
               console.log ("no cell active, flushed:\n" + code + "\n")
+
     end
 
 let extension =

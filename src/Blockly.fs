@@ -6115,7 +6115,7 @@ module Blockly =
         /// new change listener might be called with events that occurred a few
         /// milliseconds before the change listener was added.</summary>
         /// <param name="func">Function to call.</param>
-        abstract addChangeListener: func: Function -> Function
+        abstract addChangeListener: func: Func<Blockly.Events.Abstract__Class,unit> -> unit //Function -> Function
         /// <summary>Stop listening for this workspace's changes.</summary>
         /// <param name="func">Function to stop calling.</param>
         abstract removeChangeListener: func: Function -> unit

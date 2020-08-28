@@ -173,7 +173,9 @@ type BlocklyWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker) as thi
                 | false,false -> e?``type``,e?blockId //this is impossible; take default case
               Logging.LogToServer( Logging.BlocklyLogEntry082720.Create evt id )
             )
-            this.workspace.addChangeListener(logListener)
+            //check if logging should occur
+            Logging.CheckShouldLog()
+            if Logging.shouldLog then this.workspace.addChangeListener(logListener)
 
 
         /// Resize blockly when widget resizes

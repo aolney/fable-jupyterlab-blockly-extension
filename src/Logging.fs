@@ -31,10 +31,9 @@ type LogEntry =
         json: string
     }
 
-//No logging by default; only turn on if within olney.ai domain; only log to localhost
+//No logging by default; only turn on if within olney.ai domain;
 let mutable shouldLog = false
-let LogServerEndpoint = "http://127.0.0.1:5000"
-// let LogServerEndpoint = "http://aolneyserver1.memphis.edu:5000"
+let LogServerEndpoint = "https://logging.olney.ai"
 /// Log to server. Basically this is Express wrapping a database, but repo is not public as of 8/25/20
 let LogToServer( logObject: obj ) = 
     if shouldLog then

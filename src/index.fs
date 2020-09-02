@@ -104,8 +104,14 @@ type BlocklyWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker) as thi
                 let messageType = args.header.msg_type.ToString()
                 if messageType = "execute_input" then
                     Browser.Dom.console.log ("kernel executed code, updating intellisense")
+                    //log executed code as string
                     Logging.LogToServer( Logging.JupyterLogEntry082720.Create "execute-code" (args.content?code |> Some) )
                     Toolbox.UpdateAllIntellisense()
+                //also hook errors here; log entire error object as json
+                //else if messageType = "execute_reply" && args.content?status="error" then //would require subscribing to shell channel
+                else if messageType = "error" then
+                  Logging.LogToServer( Logging.JupyterLogEntry082720.Create "execute-code-error" ( JS.JSON.stringify(args.content) |> Some) )
+                    
                 true)
 
         /// When active cell in JLab changes, try to update the blocks workspace
@@ -175,7 +181,9 @@ type BlocklyWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker) as thi
             )
             //check if logging should occur
             Logging.CheckShouldLog()
-            if Logging.shouldLog then this.workspace.addChangeListener(logListener)
+            if Logging.shouldLog then 
+              console.log ("!!! Logging select user actions to server !!!")
+              this.workspace.addChangeListener(logListener) |> ignore
 
 
         /// Resize blockly when widget resizes

@@ -23,6 +23,10 @@ module Model =
     type [<AllowNullLiteral>] IExports =
         abstract OutputAreaModel: OutputAreaModelStatic
 
+    //TODO: move all exports to top level?
+    [<Import("*","@jupyterlab/outputarea")>]
+    let Types:IExports = jsNative
+
     /// The model for an output area.
     /// The namespace for IOutputAreaModel interfaces.
     type [<AllowNullLiteral>] IOutputAreaModel =

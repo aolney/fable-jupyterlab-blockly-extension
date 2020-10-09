@@ -16,6 +16,14 @@ open JupyterlabNotebook.Tokens
 let mutable requires: obj array =
     [| JupyterlabApputils.ICommandPalette; JupyterlabNotebook.Tokens.Types.INotebookTracker |]
 
+//testing if this is globally available; would need to be paired with code
+let logSelfExplanation( text : string ) =
+  Logging.LogToServer( Logging.JupyterLogEntry082720.Create "self-explanation" ( text |> Some ) ) 
+
+//set up global in node
+let [<Global>] ``global`` : obj = jsNative
+``global``?logSelfExplanation <- logSelfExplanation
+
 //https://stackoverflow.com/questions/47640263/how-to-extend-a-js-class-in-fable
 [<Import("Widget", from = "@phosphor/widgets")>]
 [<AbstractClass>]
@@ -114,11 +122,71 @@ type BlocklyWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker) as thi
                     
                 true)
 
+        //SE tracking
+        // 1. coopting markdown cell
+        // check if cell is markdown and previous cell is code cell
+        // could log if rendered but concerned about compliance
+        /// alternatively create an activity monitor that will fire 10 seconds after they stop typing OR if "Next cell is going to take them to another notebook"
         /// When active cell in JLab changes, try to update the blocks workspace
+        // 2. create a self explanation panel
+        /// currently this is not being pursued b/c we want the SE to be UNDER the code output
+        /// 3. coopt the output area of the code
+        /// See this example for adding to the content of an output area: https://github.com/jupyterlab/jupyterlab/blob/14776bb75832c0a474933dc46aba67cda16ced9e/packages/outputarea/src/widget.ts#L569
+        /// 4. override the rendermime handler for code output
+        /// this probably is messy b/c we have dataframe, etc: https://github.com/plotly/plotly.py/blob/master/packages/javascript/jupyterlab-plotly/src/javascript-renderer-extension.ts
         member this.onActiveCellChanged =
-          PhosphorSignaling.Slot<INotebookTracker, Cell>(fun sender args ->
+          PhosphorSignaling.Slot<INotebookTracker, Cell>(fun sender args ->    
+            //test if codecell
+            //match args with
+            //| :? JupyterlabCells.Widget.CodeCell -> console.log ("I am a code cell") 
+            // let testButton = document.createElement ("button")
+            // testButton.innerText <- "Test button"
+            //does not show up in outerHTML
+            // testButton.addEventListener ("click", (fun _ -> console.log ("I was clicked!") ))
+            //does not show up in outerHTML
+            //testButton.onclick <- fun _ -> console.log ("I was clicked!")
+            //console.log( testButton.outerHTML )
+            //this works but needs a string not code
+            // testButton.setAttribute("onclick", console.log ("I was clicked!") |> unbox)
+
+            //TODO: IS OVERRIDDEN WHEN CELL EXECUTES
+
+            //are we a code cell? Dynamic b/c fable 2 can't type test foreign interface
+            match args?constructor?name with 
+            | "CodeCell" -> 
+              console.log ("I am a code cell")
+              let codeCell = args :?> JupyterlabCells.Widget.CodeCell
+              let randomId = System.DateTime.Now.Ticks.ToString()
+              let displayData = //
+                createObj 
+                  [
+                    "output_type" ==> "display_data"
+                    //"data" ==> createObj [ "text/html" ==> testButton.outerHTML ] // """<div style='display:inline-block;vertical-align: top;'><textarea id='self-explanation' cols='60' rows='2' style='color:Tomato;'></textarea></div><div style='display:inline-block;vertical-align: top;'><button onclick='document.getElementById("self-explanation").style.color = "black";'>Enter</button></div>""" ]
+                    "data" ==> createObj [ "text/html" ==> """<div style='display:inline-block;vertical-align: top;'><textarea id='self-explanation""" + randomId +  """' cols='60' rows='2' style='color:Tomato;'></textarea></div><div style='display:inline-block;vertical-align: top;'><button onclick="document.getElementById('self-explanation""" + randomId + """').style.color = 'black';logSelfExplanation(document.getElementById('self-explanation""" + randomId + """').value)">Enter</button></div>""" ]
+                    "metadata" ==> createObj [ "custom_type" ==> "self-explanation" ]
+                  ] :?> JupyterlabCoreutils.Nbformat.Nbformat.IOutput
+              
+              //check if our self-explanation is already present; don't create duplicates!
+              let alreadyExists = 
+                [| 0.0 .. codeCell.outputArea.model.length - 1.0 |] 
+                |> Array.exists( fun i ->
+                  let model = codeCell.outputArea.model.get(i)
+                  model.metadata?custom_type = !!"self-explanation" 
+                )
+
+              let result = if not <| alreadyExists then codeCell.outputArea.model.add( displayData ) else 0.0 //|> ignore
+              
+              console.log (result)
+              // let outputModel = JupyterlabOutputarea.Model.Types.OutputAreaModel.Create(  createObj [ "trusted" ==> true ] |> unbox ) :?> JupyterlabOutputarea.Widget.IOutputModel
+              // codeCell.outputArea.createOutputItem( outputModel ) |> ignore
+              ()
+            | _ -> ()
+            //end self-explanation
+
+            //*****************************************
+
             //log the active cell change
-            Logging.LogToServer( Logging.JupyterLogEntry082720.Create "active-cell-change" None )
+            Logging.LogToServer( Logging.JupyterLogEntry082720.Create "active-cell-change" ( args.node.outerText |> Some ) ) //None )
             let syncCheckbox = document.getElementById("syncCheckbox")
             let (isChecked : bool) = syncCheckbox?``checked`` |> unbox //checked is a f# reserved keyword
             if isChecked && notebooks.activeCell <> null then

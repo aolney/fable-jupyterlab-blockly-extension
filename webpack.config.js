@@ -68,6 +68,9 @@ module.exports = {
     output: {
         path: resolve(CONFIG.outputDir),
         filename: isProduction ? '[name].[hash].js' : '[name].js'
+        //call fable from js https://fable.io/docs/communicate/fable-from-js.html
+        // libraryTarget: 'commonjs',
+        // library: 'MyFableLib'
     },
     mode: isProduction ? 'production' : 'development',
     devtool: isProduction ? 'source-map' : 'eval-source-map',

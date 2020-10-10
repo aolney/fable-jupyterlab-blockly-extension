@@ -12,6 +12,7 @@ type [<AllowNullLiteral>] IExports =
 
 //AMO changed
 type Slot<'T, 'U> = Func<'T,'U,bool>
+type Slot<'T> = Func<'T,bool>
 // type [<AllowNullLiteral>] Slot<'T, 'U> =
 //     [<Emit "$0($1...)">] abstract Invoke: sender: 'T * args: 'U -> unit
 

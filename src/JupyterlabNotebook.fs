@@ -9,8 +9,11 @@ open Fable.React
 //amo typescript
 type [<AllowNullLiteral>] ArrayLike<'T> =
     abstract length : int
-    abstract Item : int -> 'T with get, set
+    [<Emit("$0[$1]{{=$2}}")>] 
+    abstract Item: index: int -> 'T with get, set
+    //abstract Item : int -> 'T with get, set
 type Array<'T> = ArrayLike<'T>
+///Note this does not enforce readonly static typechecking
 type ReadonlyArray<'T> = Array<'T>
 type PromiseLike<'T> = Promise<'T>
 //end typescript

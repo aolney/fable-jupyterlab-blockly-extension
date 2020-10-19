@@ -16,11 +16,15 @@ open JupyterlabNotebook.Tokens
 let mutable requires: obj array =
     [| JupyterlabApputils.ICommandPalette; JupyterlabNotebook.Tokens.Types.INotebookTracker |]
 
-//testing if this is globally available; would need to be paired with code
-let logSelfExplanation( text : string ) =
-  Logging.LogToServer( Logging.JupyterLogEntry082720.Create "self-explanation" ( text |> Some ) ) 
+/// id to self explanation map
+let selfExplanationState = System.Collections.Generic.Dictionary<string,string>()
 
-//set up global in node
+/// Log self explanation and save its state
+let logSelfExplanation( text : string) ( id : string ) =
+  Logging.LogToServer( Logging.JupyterLogEntry082720.Create "self-explanation" ( text |> Some ) ) 
+  selfExplanationState.Add( id, text)
+
+/// Simplest way to connect javascript injected into code cell output to F#: make a global function in node
 let [<Global>] ``global`` : obj = jsNative
 ``global``?logSelfExplanation <- logSelfExplanation
 
@@ -124,45 +128,6 @@ type BlocklyWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker) as thi
                   Logging.LogToServer( Logging.JupyterLogEntry082720.Create "execute-code-error" ( JS.JSON.stringify(args.content) |> Some) )
                     
                 true)
-
-        // NOTE: this never fires for some reason; perhaps I misunderstand what "widget" is here
-        // member this.WidgetUpdated =
-        //   PhosphorSignaling.Slot<JupyterlabApputils.IWidgetTracker<NotebookPanel>,NotebookPanel>(fun sender args ->    
-        //     //sender.currentWidget.
-        //     //add self explanation (if it doesn't already exist) to every code cell
-        //     // let notebookCellModelList = args.model.cells
-        //     // for i in [|0.0 .. notebookCellModelList.length - 1.0 |] do
-        //     //   let cellModel = notebookCellModelList.get(i).Value
-        //     //   if cellModel.``type`` = "code" then
-        //     for i = 0 to args.content.widgets.length - 1 do
-        //       let cell = args.content.widgets.[i]
-        //       if cell.model.``type`` = JupyterlabCoreutils.Nbformat.Nbformat.CellType.Code then
-        //         console.log ("I am a code cell")
-        //         let codeCell = cell :?> JupyterlabCells.Widget.CodeCell
-        //         let randomId = System.DateTime.Now.Ticks.ToString()
-        //         let displayData = //
-        //           createObj 
-        //             [
-        //               "output_type" ==> "display_data"
-        //               //"data" ==> createObj [ "text/html" ==> testButton.outerHTML ] // """<div style='display:inline-block;vertical-align: top;'><textarea id='self-explanation' cols='60' rows='2' style='color:Tomato;'></textarea></div><div style='display:inline-block;vertical-align: top;'><button onclick='document.getElementById("self-explanation").style.color = "black";'>Enter</button></div>""" ]
-        //               "data" ==> createObj [ "text/html" ==> """<div style='display:inline-block;vertical-align: top;'><textarea id='self-explanation""" + randomId +  """' cols='60' rows='2' style='color:Tomato;'></textarea></div><div style='display:inline-block;vertical-align: top;'><button onclick="document.getElementById('self-explanation""" + randomId + """').style.color = 'black';logSelfExplanation(document.getElementById('self-explanation""" + randomId + """').value)">Enter</button></div>""" ]
-        //               "metadata" ==> createObj [ "custom_type" ==> "self-explanation" ]
-        //             ] :?> JupyterlabCoreutils.Nbformat.Nbformat.IOutput
-              
-        //         //check if our self-explanation is already present; don't create duplicates!
-        //         let alreadyExists = 
-        //           [| 0.0 .. codeCell.outputArea.model.length - 1.0 |] 
-        //           |> Array.exists( fun i ->
-        //             let model = codeCell.outputArea.model.get(i)
-        //             model.metadata?custom_type = !!"self-explanation" 
-        //           )
-
-        //         if not <| alreadyExists then 
-        //           codeCell.outputArea.model.add( displayData ) |> ignore
-        //           console.log("I added a self explanation a code cell's outputarea")
-              
-        //     true
-        //   )
         
         member this.onActiveCellChanged =
           PhosphorSignaling.Slot<INotebookTracker, Cell>(fun sender args ->  
@@ -175,76 +140,56 @@ type BlocklyWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker) as thi
               if cell.model.``type`` = JupyterlabCoreutils.Nbformat.Nbformat.CellType.Code then
                 console.log ("I am a code cell")
                 let codeCell = cell :?> JupyterlabCells.Widget.CodeCell
-                let randomId = System.DateTime.Now.Ticks.ToString()
-                let displayData = //
-                  createObj 
-                    [
-                      "output_type" ==> "display_data"
-                      //"data" ==> createObj [ "text/html" ==> testButton.outerHTML ] // """<div style='display:inline-block;vertical-align: top;'><textarea id='self-explanation' cols='60' rows='2' style='color:Tomato;'></textarea></div><div style='display:inline-block;vertical-align: top;'><button onclick='document.getElementById("self-explanation").style.color = "black";'>Enter</button></div>""" ]
-                      "data" ==> createObj [ "text/html" ==> """<div style='display:inline-block;vertical-align: top;'><textarea id='self-explanation""" + randomId +  """' cols='60' rows='2' style='color:Tomato;'></textarea></div><div style='display:inline-block;vertical-align: top;'><button onclick="document.getElementById('self-explanation""" + randomId + """').style.color = 'black';logSelfExplanation(document.getElementById('self-explanation""" + randomId + """').value)">Enter</button></div>""" ]
-                      "metadata" ==> createObj [ "custom_type" ==> "self-explanation" ]
-                    ] :?> JupyterlabCoreutils.Nbformat.Nbformat.IOutput
-              
-                //check if our self-explanation is already present; don't create duplicates!
-                let alreadyExists = 
+
+                //check if our self-explanation response box is already present; don't create duplicates!
+                let hasResposeBox =
                   [| 0.0 .. codeCell.outputArea.model.length - 1.0 |] 
                   |> Array.exists( fun i ->
-                    let model = codeCell.outputArea.model.get(i)
-                    model.metadata?custom_type = !!"self-explanation" 
+                    let model = codeCell.outputArea.model.get(i) 
+                    let html = model.data.["text/html"] |> unbox<string>
+                    html <> null && html.Contains("self-explanation") //below we enforce that <textarea> has an id containing the string "self-explanation"
                   )
+                  
+                if not <| hasResposeBox then
+                  //conveniently we have a unique persistent id
+                  let modelId = codeCell.model.id
+                  //retrieve the stored self-explanation if it exists
+                  let selfExplanation = 
+                    match selfExplanationState.TryGetValue(modelId) with
+                      | true,se -> se //we have a stored self explanation
+                      | false,_ -> "" //nothing stored
 
-                if not <| alreadyExists then 
+                  //if self explanation exists, display it in black; else display an empty textarea with red font
+                  let displayData = //
+                    createObj 
+                      [
+                        "output_type" ==> "display_data"
+                        //inject the modelId into the textarea id; insert the stored self explanation if it exists; creating a logging handler with this information
+                        "data" ==> createObj [ "text/html" ==> """<div style='display:inline-block;vertical-align: top;'><textarea id='self-explanation""" + modelId +  """' cols='60' rows='2'""" + (if selfExplanation = "" then " style='color:Tomato;'" else "") + ">" + selfExplanation  + """</textarea></div><div style='display:inline-block;vertical-align: top;'><button onclick="document.getElementById('self-explanation""" + modelId + """').style.color = 'black';logSelfExplanation(document.getElementById('self-explanation""" + modelId + """').value,'""" + modelId + """')">Enter</button></div>""" ]
+                      ] :?> JupyterlabCoreutils.Nbformat.Nbformat.IOutput
+              
                   codeCell.outputArea.model.add( displayData ) |> ignore
-                  console.log("I added a self explanation a code cell's outputarea")
-            //OLD METHOD: applies only to current cell
-            //are we a code cell? Dynamic b/c fable 2 can't type test foreign interface
-            // match args?constructor?name with 
-            // | "CodeCell" -> 
-            //   console.log ("I am a code cell")
-            //   let codeCell = args :?> JupyterlabCells.Widget.CodeCell
-            //   let randomId = System.DateTime.Now.Ticks.ToString()
-            //   let displayData = //
-            //     createObj 
-            //       [
-            //         "output_type" ==> "display_data"
-            //         //"data" ==> createObj [ "text/html" ==> testButton.outerHTML ] // """<div style='display:inline-block;vertical-align: top;'><textarea id='self-explanation' cols='60' rows='2' style='color:Tomato;'></textarea></div><div style='display:inline-block;vertical-align: top;'><button onclick='document.getElementById("self-explanation").style.color = "black";'>Enter</button></div>""" ]
-            //         "data" ==> createObj [ "text/html" ==> """<div style='display:inline-block;vertical-align: top;'><textarea id='self-explanation""" + randomId +  """' cols='60' rows='2' style='color:Tomato;'></textarea></div><div style='display:inline-block;vertical-align: top;'><button onclick="document.getElementById('self-explanation""" + randomId + """').style.color = 'black';logSelfExplanation(document.getElementById('self-explanation""" + randomId + """').value)">Enter</button></div>""" ]
-            //         "metadata" ==> createObj [ "custom_type" ==> "self-explanation" ]
-            //       ] :?> JupyterlabCoreutils.Nbformat.Nbformat.IOutput
-              
-            //   //check if our self-explanation is already present; don't create duplicates!
-            //   let alreadyExists = 
-            //     [| 0.0 .. codeCell.outputArea.model.length - 1.0 |] 
-            //     |> Array.exists( fun i ->
-            //       let model = codeCell.outputArea.model.get(i)
-            //       model.metadata?custom_type = !!"self-explanation" 
-            //     )
-
-            //   let result = if not <| alreadyExists then codeCell.outputArea.model.add( displayData ) else 0.0 //|> ignore
-              
-            //   console.log (result)
-            //   // let outputModel = JupyterlabOutputarea.Model.Types.OutputAreaModel.Create(  createObj [ "trusted" ==> true ] |> unbox ) :?> JupyterlabOutputarea.Widget.IOutputModel
-            //   // codeCell.outputArea.createOutputItem( outputModel ) |> ignore
-            //   ()
-            // | _ -> ()
+                  // console.log("I added a self explanation a code cell's outputarea")
+            
             // //end self-explanation
             // //*****************************************
 
             //log the active cell change
-            console.log("I changed cells!")
-            Logging.LogToServer( Logging.JupyterLogEntry082720.Create "active-cell-change" ( args.node.outerText |> Some ) ) //None )
-            let syncCheckbox = document.getElementById("syncCheckbox")
-            let (isChecked : bool) = syncCheckbox?``checked`` |> unbox //checked is a f# reserved keyword
-            if isChecked && notebooks.activeCell <> null then
-              //if selected cell empty, clear the workspace
-              if notebooks.activeCell.model.value.text.Trim() = "" then
-                // blockly.getMainWorkspace().clear() //to avoid duplicates
-                clearBlocks()
-              //otherwise try to to create blocks from cell contents (fails gracefully)
-              else
-                this.RenderBlocks()
-              //Update intellisense on blocks we just created
-              Toolbox.UpdateAllIntellisense()
+            if args <> null then
+              console.log("I changed cells!")
+              Logging.LogToServer( Logging.JupyterLogEntry082720.Create "active-cell-change" ( args.node.outerText |> Some ) ) //None )
+              let syncCheckbox = document.getElementById("syncCheckbox")
+              let (isChecked : bool) = (syncCheckbox <> null) && syncCheckbox?``checked`` |> unbox //checked is a f# reserved keyword
+              if isChecked && notebooks.activeCell <> null then
+                //if selected cell empty, clear the workspace
+                if notebooks.activeCell.model.value.text.Trim() = "" then
+                  // blockly.getMainWorkspace().clear() //to avoid duplicates
+                  clearBlocks()
+                //otherwise try to to create blocks from cell contents (fails gracefully)
+                else
+                  this.RenderBlocks()
+                //Update intellisense on blocks we just created
+                Toolbox.UpdateAllIntellisense()
             true
            )
 

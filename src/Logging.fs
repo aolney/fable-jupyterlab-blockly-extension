@@ -31,14 +31,22 @@ type LogEntry =
         json: string
     }
 
-//No logging by default; only turn on if within olney.ai domain;
+/// No logging by default; only turn on if within olney.ai domain;
 let mutable shouldLog = false
+
+/// Where we are sending the data
 let LogServerEndpoint = "https://logging.olney.ai"
+ 
+let mutable idOption : string option = None
+
 /// Log to server. Basically this is Express wrapping a database, but repo is not public as of 8/25/20
 let LogToServer( logObject: obj ) = 
     if shouldLog then
         promise {
-            let username = Browser.Dom.window.location.href
+            let username = 
+                match idOption with
+                | Some(id) -> id
+                | None -> Browser.Dom.window.location.href
             do! Fetch.post( LogServerEndpoint + "/datawhys/log" , { username=username; json=toJson(logObject) } ) //caseStrategy = SnakeCase
         } |> ignore
 

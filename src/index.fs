@@ -326,7 +326,7 @@ let extension =
                                                  [ "command" ==> command
                                                    "category" ==> "Blockly" ])
                             
-                            //Check query string for any injected state; if query string has bl=1, trigger the open command once the application is ready
+                            //If query string has bl=1, trigger the open command once the application is ready
                             let searchParams = Browser.Url.URLSearchParams.Create(  Browser.Dom.window.location.search )
                             match searchParams.get("bl") with
                             | Some(state) when state = "1" ->
@@ -335,6 +335,11 @@ let extension =
                                 app.commands.execute(command) |> ignore
                                 widget.title.closable <- false //do not allow blockly to be closed
                                 ) |> ignore  
+                            | _ -> ()
+
+                            //If query string has id=xxx, store this identifier as a participant id
+                            match searchParams.get("id") with
+                            | Some(id) -> Logging.idOption <- Some(id)
                             | _ -> ()
 
                           ) //Func

@@ -6,6 +6,7 @@ nuget FSharp.Core >= 3.0
 nuget Fable.Core >= 3.0
 nuget Fable.Node
 nuget Fable.Browser.Dom
+nuget Fable.Browser.Url
 nuget Fable.Browser.Css
 nuget Fable.Fetch
 nuget Fable.React

@@ -632,6 +632,9 @@ type [<AllowNullLiteral>] WidgetTrackerStatic =
     /// <summary>Create a new widget tracker.</summary>
     /// <param name="options">- The instantiation options for a widget tracker.</param>
     [<Emit "new $0($1...)">] abstract Create: options: WidgetTracker.IOptions -> WidgetTracker<'T>
+    [<Emit "new $0($1...)">] abstract Create: o: obj -> WidgetTracker<'T>
+
+
 
 module WidgetTracker =
 

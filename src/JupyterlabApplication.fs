@@ -565,8 +565,8 @@ type ReadonlyJSONValue = PhosphorCoreutils.ReadonlyJSONValue
 // type Token = ``@phosphor_coreutils``.Token
 // type Widget = ``@phosphor_widgets``.Widget
 // type ILabShell = __shell.ILabShell
-let [<Import("*","@jupyterlab/application/lib/layoutrestorer")>] ILayoutRestorer: Token<ILayoutRestorer> = jsNative
-
+// let [<Import("*","@jupyterlab/application/lib/layoutrestorer")>] ILayoutRestorer: Token<ILayoutRestorer> = jsNative
+let [<ImportMember("@jupyterlab/application")>] ILayoutRestorer: Token<ILayoutRestorer> = jsNative
 // type [<AllowNullLiteral>] IExports =
 //     abstract LayoutRestorer: LayoutRestorerStatic
 

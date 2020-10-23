@@ -10,23 +10,24 @@ open Browser.Dom
 open Blockly
 open JupyterlabServices.__kernel_messages.KernelMessage
 open JupyterlabServices.__kernel_kernel.Kernel
-open JupyterlabNotebook.Tokens
+// open JupyterlabNotebook.Tokens
+// open JupyterlabApputils.Types
 
 //tricky here: if we try to make collection of requires, F# complains they are different types unless we specify obj type
 let mutable requires: obj array =
-    [| JupyterlabApputils.ICommandPalette; JupyterlabNotebook.Tokens.Types.INotebookTracker |]
+    [| JupyterlabApputils.ICommandPalette; JupyterlabNotebook.Tokens.Types.INotebookTracker; JupyterlabApplication.ILayoutRestorer |]
 
-/// id to self explanation map
-let selfExplanationState = System.Collections.Generic.Dictionary<string,string>()
+// /// id to self explanation map
+// let selfExplanationState = System.Collections.Generic.Dictionary<string,string>()
 
-/// Log self explanation and save its state
-let logSelfExplanation( text : string) ( id : string ) =
-  Logging.LogToServer( Logging.JupyterLogEntry082720.Create "self-explanation" ( text |> Some ) ) 
-  selfExplanationState.Add( id, text)
+// /// Log self explanation and save its state
+// let logSelfExplanation( text : string) ( id : string ) =
+//   Logging.LogToServer( Logging.JupyterLogEntry082720.Create "self-explanation" ( text |> Some ) ) 
+//   selfExplanationState.Add( id, text)
 
-/// Simplest way to connect javascript injected into code cell output to F#: make a global function in node
-let [<Global>] ``global`` : obj = jsNative
-``global``?logSelfExplanation <- logSelfExplanation
+// /// Simplest way to connect javascript injected into code cell output to F#: make a global function in node
+// let [<Global>] ``global`` : obj = jsNative
+// ``global``?logSelfExplanation <- logSelfExplanation
 
 //https://stackoverflow.com/questions/47640263/how-to-extend-a-js-class-in-fable
 [<Import("Widget", from = "@phosphor/widgets")>]
@@ -130,53 +131,53 @@ type BlocklyWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker) as thi
                 true)
         
         member this.onActiveCellChanged =
-          PhosphorSignaling.Slot<INotebookTracker, Cell>(fun sender args ->  
+          PhosphorSignaling.Slot<JupyterlabNotebook.Tokens.INotebookTracker, JupyterlabNotebook.Tokens.Cell>(fun sender args ->  
 
-            //SELF EXPLANATION: probe all cells b/c listening for kernel messages requires waiting to attach (we could poll instead...)
-            // check ALL code cell outputs every time a cell changes
-            let cells = this.Notebooks.currentWidget.Value.content.widgets
-            for i = 0 to cells.length - 1 do
-              let cell = cells.[i]
-              if cell.model.``type`` = JupyterlabCoreutils.Nbformat.Nbformat.CellType.Code then
-                console.log ("I am a code cell")
-                let codeCell = cell :?> JupyterlabCells.Widget.CodeCell
+            // //SELF EXPLANATION: probe all cells b/c listening for kernel messages requires waiting to attach (we could poll instead...)
+            // // check ALL code cell outputs every time a cell changes
+            // let cells = this.Notebooks.currentWidget.Value.content.widgets
+            // for i = 0 to cells.length - 1 do
+            //   let cell = cells.[i]
+            //   if cell.model.``type`` = JupyterlabCoreutils.Nbformat.Nbformat.CellType.Code then
+            //     console.log ("I am a code cell")
+            //     let codeCell = cell :?> JupyterlabCells.Widget.CodeCell
 
-                //check if our self-explanation response box is already present; don't create duplicates!
-                let hasResposeBox =
-                  [| 0.0 .. codeCell.outputArea.model.length - 1.0 |] 
-                  |> Array.exists( fun i ->
-                    let model = codeCell.outputArea.model.get(i) 
-                    let html = model.data.["text/html"] |> unbox<string>
-                    html <> null && html.Contains("self-explanation") //below we enforce that <textarea> has an id containing the string "self-explanation"
-                  )
+            //     //check if our self-explanation response box is already present; don't create duplicates!
+            //     let hasResposeBox =
+            //       [| 0.0 .. codeCell.outputArea.model.length - 1.0 |] 
+            //       |> Array.exists( fun i ->
+            //         let model = codeCell.outputArea.model.get(i) 
+            //         let html = model.data.["text/html"] |> unbox<string>
+            //         html <> null && html.Contains("self-explanation") //below we enforce that <textarea> has an id containing the string "self-explanation"
+            //       )
                   
-                if not <| hasResposeBox then
-                  //conveniently we have a unique persistent id
-                  let modelId = codeCell.model.id
-                  //retrieve the stored self-explanation if it exists
-                  let selfExplanation = 
-                    match selfExplanationState.TryGetValue(modelId) with
-                      | true,se -> se //we have a stored self explanation
-                      | false,_ -> "" //nothing stored
+            //     if not <| hasResposeBox then
+            //       //conveniently we have a unique persistent id
+            //       let modelId = codeCell.model.id
+            //       //retrieve the stored self-explanation if it exists
+            //       let selfExplanation = 
+            //         match selfExplanationState.TryGetValue(modelId) with
+            //           | true,se -> se //we have a stored self explanation
+            //           | false,_ -> "" //nothing stored
 
-                  //if self explanation exists, display it in black; else display an empty textarea with red font
-                  let displayData = //
-                    createObj 
-                      [
-                        "output_type" ==> "display_data"
-                        //inject the modelId into the textarea id; insert the stored self explanation if it exists; creating a logging handler with this information
-                        "data" ==> createObj [ "text/html" ==> """<div style='display:inline-block;vertical-align: top;'><textarea id='self-explanation""" + modelId +  """' cols='60' rows='2'""" + (if selfExplanation = "" then " style='color:Tomato;'" else "") + ">" + selfExplanation  + """</textarea></div><div style='display:inline-block;vertical-align: top;'><button onclick="document.getElementById('self-explanation""" + modelId + """').style.color = 'black';logSelfExplanation(document.getElementById('self-explanation""" + modelId + """').value,'""" + modelId + """')">Enter</button></div>""" ]
-                      ] :?> JupyterlabCoreutils.Nbformat.Nbformat.IOutput
+            //       //if self explanation exists, display it in black; else display an empty textarea with red font
+            //       let displayData = //
+            //         createObj 
+            //           [
+            //             "output_type" ==> "display_data"
+            //             //inject the modelId into the textarea id; insert the stored self explanation if it exists; creating a logging handler with this information
+            //             "data" ==> createObj [ "text/html" ==> """<div style='display:inline-block;vertical-align: top;'><textarea id='self-explanation""" + modelId +  """' cols='60' rows='2'""" + (if selfExplanation = "" then " style='color:Tomato;'" else "") + ">" + selfExplanation  + """</textarea></div><div style='display:inline-block;vertical-align: top;'><button onclick="document.getElementById('self-explanation""" + modelId + """').style.color = 'black';logSelfExplanation(document.getElementById('self-explanation""" + modelId + """').value,'""" + modelId + """')">Enter</button></div>""" ]
+            //           ] :?> JupyterlabCoreutils.Nbformat.Nbformat.IOutput
               
-                  codeCell.outputArea.model.add( displayData ) |> ignore
-                  // console.log("I added a self explanation a code cell's outputarea")
+            //       codeCell.outputArea.model.add( displayData ) |> ignore
+            //       // console.log("I added a self explanation a code cell's outputarea")
             
             // //end self-explanation
             // //*****************************************
 
             //log the active cell change
             if args <> null then
-              console.log("I changed cells!")
+              // console.log("I changed cells!")
               Logging.LogToServer( Logging.JupyterLogEntry082720.Create "active-cell-change" ( args.node.outerText |> Some ) ) //None )
               let syncCheckbox = document.getElementById("syncCheckbox")
               let (isChecked : bool) = (syncCheckbox <> null) && syncCheckbox?``checked`` |> unbox //checked is a f# reserved keyword
@@ -303,6 +304,33 @@ type BlocklyWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker) as thi
 
     end
 
+/// Return a MainAreaWidget wrapping a BlocklyWidget
+let createMainAreaWidget( bw:BlocklyWidget)= 
+  let w =
+      JupyterlabApputils.Types.MainAreaWidget.Create
+          (createObj [ "content" ==> bw ])
+  w.id <- "blockly-jupyterlab"
+  w.title.label <- "Blockly Palette"
+  w.title.closable <- true
+  //
+  w
+
+/// Attach a MainAreaWidget by splitting the viewing area and placing in the left hand pane, if possible
+let attachWidget (app:JupyterlabApplication.JupyterFrontEnd<JupyterlabApplication.LabShell>) (notebooks:JupyterlabNotebook.Tokens.INotebookTracker) (widget : JupyterlabApputils.MainAreaWidget<obj>) =
+  if not <| widget.isAttached then
+    match notebooks.currentWidget with
+    | Some(c) ->
+       let options =
+           jsOptions<JupyterlabDocregistry.Registry.DocumentRegistry.IOpenOptions> (fun o ->
+               o.ref <- c.id |> Some
+               o.mode <-
+                   PhosphorWidgets.DockLayout.InsertMode.SplitLeft |> Some)
+       c.context.addSibling (widget, options) |> ignore
+    | None -> app.shell.add (widget, "main")
+  app.shell.activateById (widget.id) 
+
+
+/// The extension
 let extension =
     createObj
         [ "id" ==> "jupyterlab_blockly_extension"
@@ -311,40 +339,48 @@ let extension =
           //------------------------------------------------------------------------------------------------------------
           //NOTE: this **must** be wrapped in a Func, otherwise the arguments are tupled and Jupyter doesn't expect that
           //------------------------------------------------------------------------------------------------------------
-          "activate" ==> System.Func<JupyterlabApplication.JupyterFrontEnd<JupyterlabApplication.LabShell>, JupyterlabApputils.ICommandPalette, JupyterlabNotebook.Tokens.INotebookTracker, unit>(fun app palette notebooks ->
-                             console.log ("JupyterLab extension jupyterlab_blockly_extension is activated!")
+          "activate" ==> System.Func<JupyterlabApplication.JupyterFrontEnd<JupyterlabApplication.LabShell>, JupyterlabApputils.ICommandPalette, JupyterlabNotebook.Tokens.INotebookTracker, JupyterlabApplication.ILayoutRestorer, unit>(fun app palette notebooks restorer ->
+                            console.log ("JupyterLab extension jupyterlab_blockly_extension is activated!")
+                            
+                            //Create a blockly widget and place inside main area widget
+                            let blocklyWidget = BlocklyWidget(notebooks)
+                            let mutable widget = createMainAreaWidget(blocklyWidget)
 
-                             //Create a blockly widget and place inside main area widget
-                             let blocklyWidget = BlocklyWidget(notebooks)
-                             let widget =
-                                 JupyterlabApputils.Types.MainAreaWidget.Create
-                                     (createObj [ "content" ==> blocklyWidget ])
-                             widget.id <- "blockly-jupyterlab"
-                             widget.title.label <- "Blockly Palette"
-                             widget.title.closable <- true
+                            //Add application command to display
+                            let command = "blockly:open"
 
-                             // Add application command
-                             let command = "blockly:open"
-                             app.commands.addCommand
-                                 (command,
-                                  createObj
-                                      [ "label" ==> "Blockly Jupyterlab Extension"
+                            //Set up widget tracking to restore state
+                            let tracker = JupyterlabApputils.Types.WidgetTracker.Create(!!createObj [ "namespace" ==> "blockly" ])
+                            restorer.restore(tracker, !!createObj [ "command" ==> command; "name" ==> fun () -> "blockly" ]) |> ignore
+
+                            //Prepare launch command for the command palette
+                            app.commands.addCommand
+                                (command,
+                                 createObj
+                                      [ 
+                                        "label" ==> "Blockly Jupyterlab Extension"
                                         "execute" ==> fun () ->
-                                            if not <| widget.isAttached then
-                                                match notebooks.currentWidget with
-                                                | Some(c) ->
-                                                    let options =
-                                                        jsOptions<JupyterlabDocregistry.Registry.DocumentRegistry.IOpenOptions> (fun o ->
-                                                            o.ref <- c.id |> Some
-                                                            o.mode <-
-                                                                PhosphorWidgets.DockLayout.InsertMode.SplitLeft |> Some)
-                                                    c.context.addSibling (widget, options) |> ignore
-                                                | None -> app.shell.add (widget, "main")
-                                            app.shell.activateById (widget.id) ] :?> PhosphorCommands.CommandRegistry.ICommandOptions)
-                             |> ignore
-                             //Add command to palette
-                             palette?addItem (createObj
-                                                  [ "command" ==> command
-                                                    "category" ==> "Blockly" ])) ]
 
+                                          //Recreate the widget if the user previously closed it
+                                          if widget = null || widget.isDisposed then
+                                            widget <- createMainAreaWidget(blocklyWidget)
+
+                                          //Attach the widget to the UI in a smart way
+                                          widget |> attachWidget app notebooks
+
+                                          //Track the widget to restore its state if the user does a refresh
+                                          if not <| tracker.has(widget) then
+                                            tracker.add(widget) |> ignore
+      
+                                      ] :?> PhosphorCommands.CommandRegistry.ICommandOptions)
+                            |> ignore
+
+                            //Add command to palette
+                            palette?addItem (createObj
+                                                 [ "command" ==> command
+                                                   "category" ==> "Blockly" ])
+                                                   
+
+                          ) //Func
+        ]
 exportDefault extension

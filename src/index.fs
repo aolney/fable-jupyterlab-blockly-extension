@@ -177,18 +177,18 @@ type BlocklyWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker) as thi
             let logListener = System.Func<Blockly.Events.Abstract__Class,unit>(fun e ->
               //for ui, get fine grain type; for var, get varId; everything else is event type and block id
               //a bit ugly b/c fable will not allow type tests against foreign interface: https://github.com/fable-compiler/Fable/issues/1580
-              let evt,id =
-                //ui and block change have `element` ; var changes have `varId`
-                match e?element=null,e?varId=null with
-                | true,true -> e?``type``,e?blockId
-                | false,true -> e?element,e?blockId
-                | true,false -> e?``type``,e?varId
-                | false,false -> e?``type``,e?blockId //this is impossible; take default case
-              Logging.LogToServer( Logging.BlocklyLogEntry082720.Create evt id )
+              // let evt,id =
+              //   //ui and block change have `element` ; var changes have `varId`
+              //   match e?element=null,e?varId=null with
+              //   | true,true -> e?``type``,e?blockId
+              //   | false,true -> e?element,e?blockId
+              //   | true,false -> e?``type``,e?varId
+              //   | false,false -> e?``type``,e?blockId //this is impossible; take default case
+              // Scratch that - log everything until we figure out what we don't want
+              Logging.LogToServer( Logging.BlocklyLogEntry082720.Create e?``type`` e ) //evt id )
             )
             //check if logging should occur
-            Logging.CheckShouldLog()
-            if Logging.shouldLog then 
+            if Logging.logUrl.IsSome then 
               console.log ("!!! Logging select user actions to server !!!")
               this.workspace.addChangeListener(logListener) |> ignore
 
@@ -340,6 +340,12 @@ let extension =
                             //If query string has id=xxx, store this identifier as a participant id
                             match searchParams.get("id") with
                             | Some(id) -> Logging.idOption <- Some(id)
+                            | _ -> ()
+
+                            //If query string has log=xxx, use this at the logging endpoint
+                            //must include http/https in url
+                            match searchParams.get("log") with
+                            | Some(logUrl) -> Logging.logUrl <- Some(logUrl)
                             | _ -> ()
 
                           ) //Func

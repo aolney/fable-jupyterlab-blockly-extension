@@ -272,9 +272,23 @@ let attachWidget (app:JupyterlabApplication.JupyterFrontEnd<JupyterlabApplicatio
                o.mode <-
                    PhosphorWidgets.DockLayout.InsertMode.SplitLeft |> Some)
        c.context.addSibling (widget, options) |> ignore
-    | None -> app.shell.add (widget, "main")
+    | None -> 
+        //Forcing a left split when there is no notebook open results in partially broken behavior, so we must add to the main area
+        app.shell.add (widget, "main") //"left", options)
   app.shell.activateById (widget.id) 
 
+//Catch notebook changed event for enabling extension and attaching to left side when query string command is given
+let onNotebookChanged =
+          PhosphorSignaling.Slot<JupyterlabApputils.IWidgetTracker<JupyterlabNotebook.Tokens.NotebookPanel>, JupyterlabNotebook.Tokens.NotebookPanel option>(fun sender args -> 
+            match sender.currentWidget with
+            | Some( notebook ) -> 
+              // app.commands.execute(command) |> ignore
+              console.log("notebook changed, running blockly command")
+              jsThis<JupyterlabApplication.JupyterFrontEnd<JupyterlabApplication.LabShell>>.commands.execute("blockly:open") |> ignore    
+            | None -> ()
+            //
+            true
+          )
 
 /// The extension
 let extension =
@@ -332,7 +346,9 @@ let extension =
                             | Some(state) when state = "1" ->
                               console.log ("Blockly extension triggering open command based on query string input")
                               app.restored.``then``(fun _ -> 
-                                app.commands.execute(command) |> ignore
+                                //wait until a notebook is displayed so we dock correctly (e.g. nbgitpuller deployment)
+                                notebooks.currentChanged.connect( onNotebookChanged, app ) |> ignore
+                                //app.commands.execute(command) |> ignore
                                 widget.title.closable <- false //do not allow blockly to be closed
                                 ) |> ignore  
                             | _ -> ()

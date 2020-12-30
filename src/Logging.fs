@@ -36,7 +36,7 @@ let mutable logUrl : string option = None
  
 let mutable idOption : string option = None
 
-/// Log to server. Basically this is Express wrapping a database, but repo is not public as of 8/25/20
+/// Log to server if we've been given a logUrl. Basically this is Express wrapping a database, but that repo is not public as of 12/29/20
 let LogToServer( logObject: obj ) = 
     match logUrl with
     | Some(url) ->

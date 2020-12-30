@@ -1,6 +1,6 @@
 {
   "name": "@aolney/fable-jupyterlab-blockly-extension",
-  "version": "0.3.12",
+  "version": "0.3.13",
   "description": "An JupyterLab extension for Blockly with Fable tooling",
   "keywords": [
     "jupyter",
@@ -51,7 +51,7 @@
     "file-loader": "^4.0.0",
     "gh-pages": "^2.0.1",
     "html-webpack-plugin": "^3.2.0",
-    "isomorphic-fetch": "^2.2.1",
+    "isomorphic-fetch": "^3.0.0",
     "jsdom": "^15.1.0",
     "jsdom-global": "^3.0.2",
     "loglevel": "^1.5.0",

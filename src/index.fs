@@ -142,20 +142,9 @@ type BlocklyWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker) as thi
 
         /// Wait until widget shown to prevent injection from taking place before the DOM is ready
         /// Inject blockly into div and save blockly workspace to private member
+        /// Previously hooked kernel messages here, but moved so we could hook/log without Blockly widget display
         override this.onAfterAttach() =
-            //try to register for code execution messages
-            if this.notHooked then
-                match this.Notebooks.currentWidget with
-                | Some(widget) ->
-                    match widget.session.kernel with
-                    | Some(kernel) ->
-                        let ikernel = kernel :?> IKernel
-                        ikernel.iopubMessage.connect (this.onKernelExecuted, this) |> ignore
-                        console.log ("Listening for kernel messages")
-                        this.notHooked <- false
-                    | None -> ()
-                | None -> ()
-
+            
             //NOTE: trying to move this to constructor; for other extensions is it better not to wait for attach
             //listen for active cell changes in JupyterLab
             // this.Notebooks.activeCellChanged.connect( this.onActiveCellChanged, this ) |> ignore
@@ -189,8 +178,8 @@ type BlocklyWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker) as thi
             )
             //check if logging should occur
             if Logging.logUrl.IsSome then 
-              console.log ("!!! Logging select user actions to server !!!")
-              this.workspace.addChangeListener(logListener) |> ignore
+              console.log ("!!! Logging select blockly actions to server !!!")
+              this.workspace.addChangeListener(logListener) |> ignore 
 
 
         /// Resize blockly when widget resizes
@@ -278,13 +267,45 @@ let attachWidget (app:JupyterlabApplication.JupyterFrontEnd<JupyterlabApplicatio
   app.shell.activateById (widget.id) 
 
 //Catch notebook changed event for enabling extension and attaching to left side when query string command is given
-let onNotebookChanged =
+let runCommandOnNotebookChanged =
           PhosphorSignaling.Slot<JupyterlabApputils.IWidgetTracker<JupyterlabNotebook.Tokens.NotebookPanel>, JupyterlabNotebook.Tokens.NotebookPanel option>(fun sender args -> 
             match sender.currentWidget with
             | Some( notebook ) -> 
               // app.commands.execute(command) |> ignore
-              console.log("notebook changed, running blockly command")
+              console.log("notebook changed, autorunning blockly command")
               jsThis<JupyterlabApplication.JupyterFrontEnd<JupyterlabApplication.LabShell>>.commands.execute("blockly:open") |> ignore    
+            | None -> ()
+            //
+            true
+          )
+
+//Start logging kernel messages if not already registered
+let onKernelChanged = 
+  PhosphorSignaling.Slot<JupyterlabApputils.IClientSession, JupyterlabServices.__session_session.Session.IKernelChangedArgs>(fun sender args -> 
+    let widget = jsThis<BlocklyWidget> 
+    if widget.notHooked then
+      match sender.kernel with
+      | Some(kernel) ->
+          let ikernel = kernel :?> IKernel
+          ikernel.iopubMessage.connect (widget.onKernelExecuted, widget ) |> ignore
+          console.log ("Listening for kernel messages")
+          widget.notHooked <- false
+      | None -> ()
+      //
+      true
+    else
+      false
+  )
+
+
+/// On every notebook change, register to handle delayed kernel events that are not accessible at this time point
+let onNotebookChanged =
+          PhosphorSignaling.Slot<JupyterlabApputils.IWidgetTracker<JupyterlabNotebook.Tokens.NotebookPanel>, JupyterlabNotebook.Tokens.NotebookPanel option >(fun sender args -> 
+            // console.log("notebook changed")
+            let blocklyWidget = jsThis<BlocklyWidget> //"this" not defined in promise context
+            match sender.currentWidget with
+            | Some( notebook ) -> 
+              notebook.session.kernelChanged.connect( onKernelChanged, blocklyWidget ) |> ignore
             | None -> ()
             //
             true
@@ -312,6 +333,9 @@ let extension =
                             //Set up widget tracking to restore state
                             let tracker = JupyterlabApputils.Types.WidgetTracker.Create(!!createObj [ "namespace" ==> "blockly" ])
                             restorer.restore(tracker, !!createObj [ "command" ==> command; "name" ==> fun () -> "blockly" ]) |> ignore
+
+                            //wait until a notebook is displayed to hook kernel messages
+                            notebooks.currentChanged.connect( onNotebookChanged, blocklyWidget ) |> ignore
 
                             //Prepare launch command for the command palette
                             app.commands.addCommand
@@ -347,7 +371,8 @@ let extension =
                               console.log ("Blockly extension triggering open command based on query string input")
                               app.restored.``then``(fun _ -> 
                                 //wait until a notebook is displayed so we dock correctly (e.g. nbgitpuller deployment)
-                                notebooks.currentChanged.connect( onNotebookChanged, app ) |> ignore
+                                //NOTE: workspaces are stateful, so the notebook must be closed, then openned in the workspace for this to fire
+                                notebooks.currentChanged.connect( runCommandOnNotebookChanged, app ) |> ignore
                                 //app.commands.execute(command) |> ignore
                                 widget.title.closable <- false //do not allow blockly to be closed
                                 ) |> ignore  

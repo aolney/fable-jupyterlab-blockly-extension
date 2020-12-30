@@ -334,6 +334,9 @@ let extension =
                             let tracker = JupyterlabApputils.Types.WidgetTracker.Create(!!createObj [ "namespace" ==> "blockly" ])
                             restorer.restore(tracker, !!createObj [ "command" ==> command; "name" ==> fun () -> "blockly" ]) |> ignore
 
+                            //wait until a notebook is displayed to hook kernel messages
+                            notebooks.currentChanged.connect( onNotebookChanged, blocklyWidget ) |> ignore
+
                             //Prepare launch command for the command palette
                             app.commands.addCommand
                                 (command,
@@ -368,6 +371,7 @@ let extension =
                               console.log ("Blockly extension triggering open command based on query string input")
                               app.restored.``then``(fun _ -> 
                                 //wait until a notebook is displayed so we dock correctly (e.g. nbgitpuller deployment)
+                                //NOTE: workspaces are stateful, so the notebook must be closed, then openned in the workspace for this to fire
                                 notebooks.currentChanged.connect( runCommandOnNotebookChanged, app ) |> ignore
                                 //app.commands.execute(command) |> ignore
                                 widget.title.closable <- false //do not allow blockly to be closed
@@ -384,10 +388,6 @@ let extension =
                             match searchParams.get("log") with
                             | Some(logUrl) -> Logging.logUrl <- Some(logUrl)
                             | _ -> ()
-
-                            //wait until a notebook is displayed to hook kernel messages
-                            //notebooks.currentChanged.connect( onNotebookChanged, blocklyWidget ) |> ignore
-
 
                           ) //Func
         ]

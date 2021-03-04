@@ -37,10 +37,10 @@ type BlocklyWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker) as thi
         let generator = Blockly.python //Blockly.javascript
         ///Remove blocks from workspace without affecting variable map like blockly.getMainWorkspace().clear() would
         let clearBlocks() = 
-          let workspace = blockly.getMainWorkspace()
-          let blocks = workspace.getAllBlocks(false)
-          for b in blocks do
-            b.dispose(false)
+            let workspace = blockly.getMainWorkspace()
+            let blocks = workspace.getAllBlocks(false)
+            for b in blocks do
+              b.dispose(false)
         do
             //listen for cell changes
             notebooks.activeCellChanged.connect( this.onActiveCellChanged, this ) |> ignore
@@ -88,15 +88,27 @@ type BlocklyWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker) as thi
             syncCheckbox.setAttribute("type", "checkbox")
             syncCheckbox?``checked`` <- true //turn on sync by default
             syncCheckbox.id <- "syncCheckbox"
-            let checkboxLabel = document.createElement ("label")
-            checkboxLabel.innerText <- "Notebook Sync"
-            checkboxLabel.setAttribute("for", "syncCheckbox")
+            let syncCheckboxLabel = document.createElement ("label")
+            syncCheckboxLabel.innerText <- "Notebook Sync"
+            syncCheckboxLabel.setAttribute("for", "syncCheckbox")
             buttonDiv.appendChild( syncCheckbox) |> ignore
-            buttonDiv.appendChild( checkboxLabel) |> ignore
+            buttonDiv.appendChild( syncCheckboxLabel) |> ignore
+
+            //checkbox for autosave (force blocks to code if moving away from cell that already has blocks to code in it)
+            let autosaveCheckbox = document.createElement ("input")
+            autosaveCheckbox.setAttribute("type", "checkbox")
+            autosaveCheckbox?``checked`` <- false //turn off autosave by default
+            autosaveCheckbox.id <- "autosaveCheckbox"
+            let autosaveCheckboxLabel = document.createElement ("label")
+            autosaveCheckboxLabel.innerText <- "Autosave"
+            autosaveCheckboxLabel.setAttribute("for", "autosaveCheckbox")
+            buttonDiv.appendChild( autosaveCheckbox) |> ignore
+            buttonDiv.appendChild( autosaveCheckboxLabel) |> ignore
 
             //append all buttons in div
             this.node.appendChild ( buttonDiv ) |> ignore
 
+        member val lastCell : JupyterlabNotebook.Tokens.Cell = null with get, set
         member val workspace: Blockly.Workspace = null with get, set
         member val notHooked = true with get, set
         member this.Notebooks = notebooks
@@ -126,17 +138,26 @@ type BlocklyWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker) as thi
               // console.log("I changed cells!")
               Logging.LogToServer( Logging.JupyterLogEntry082720.Create "active-cell-change" ( args.node.outerText |> Some ) ) //None )
               let syncCheckbox = document.getElementById("syncCheckbox")
-              let (isChecked : bool) = (syncCheckbox <> null) && syncCheckbox?``checked`` |> unbox //checked is a f# reserved keyword
-              if isChecked && notebooks.activeCell <> null then
+              let autosaveCheckbox = document.getElementById("autosaveCheckbox")
+              let isChecked aCheckbox : bool = (aCheckbox <> null) && aCheckbox?``checked`` |> unbox //checked is a f# reserved keyword
+
+              //if sync enabled
+              if isChecked(syncCheckbox) && notebooks.activeCell <> null then
                 //if selected cell empty, clear the workspace
                 if notebooks.activeCell.model.value.text.Trim() = "" then
                   // blockly.getMainWorkspace().clear() //to avoid duplicates
-                  clearBlocks()
+                  // clearBlocks() //OLD: tight sync
+                  ()
                 //otherwise try to to create blocks from cell contents (fails gracefully)
                 else
                   this.RenderBlocks()
                 //Update intellisense on blocks we just created
                 Toolbox.UpdateAllIntellisense()
+
+              // if autosave enabled, attempt to save our current blocks to the previous cell we just navigated off (to prevent losing work)
+              if isChecked(autosaveCheckbox) && notebooks.activeCell <> null then
+                this.RenderCodeToLastCell()
+                this.lastCell <- args
             true
            )
 
@@ -164,6 +185,11 @@ type BlocklyWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker) as thi
 
             ///Add listeners for logging; see https://developers.google.com/blockly/guides/configure/web/events
             let logListener = System.Func<Blockly.Events.Abstract__Class,unit>(fun e ->
+              // mark when blocks are added so we don't delete those blocks when changing cells UNLESS they've been written to code
+              // problem here: this fires when user creates blocks AND when blocks are deserialized
+              // if e?``type`` = "create" then
+              //   this.blocksWritten <- false
+
               //for ui, get fine grain type; for var, get varId; everything else is event type and block id
               //a bit ugly b/c fable will not allow type tests against foreign interface: https://github.com/fable-compiler/Fable/issues/1580
               // let evt,id =
@@ -207,9 +233,10 @@ type BlocklyWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker) as thi
                 else
                     None
             try
-              clearBlocks()
+              // clearBlocks() //OLD: tight sync: cleared even if no xml
               match xmlStringOption with
               | Some(xmlString) -> 
+                    clearBlocks()
                     Toolbox.decodeWorkspace ( xmlString )
                     Logging.LogToServer( Logging.JupyterLogEntry082720.Create "xml-to-blocks"  ( xmlString |> Some ) )
               | None -> ()
@@ -226,7 +253,11 @@ type BlocklyWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker) as thi
           if notebooks.activeCell <> null then
             //prevent overwriting markdown
             if notebooks.activeCell.model |> JupyterlabCells.Model.Types.isMarkdownCellModel then
-                Browser.Dom.window.alert("You are calling 'Blocks to Code' on a MARKDOWN cell. Turn off notebook sync, select the CODE cell, turn sync back on, and try again." )
+                // new alert: sloppy sync
+                Browser.Dom.window.alert("You are calling 'Blocks to Code' on a MARKDOWN cell. Select an empty CODE cell and try again." )
+           
+                // old alert: tight sync
+                // Browser.Dom.window.alert("You are calling 'Blocks to Code' on a MARKDOWN cell. Turn off notebook sync, select the CODE cell, turn sync back on, and try again." )
             else
               notebooks.activeCell.model.value.text <-
                   code //overwrite
@@ -237,6 +268,29 @@ type BlocklyWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker) as thi
           else
               console.log ("no cell active, flushed:\n" + code + "\n")
 
+        /// Auto-save: Render blocks to code if we are on a code cell, we've previously saved to it, and have any blocks on the workspace
+        member this.RenderCodeToLastCell() =
+          let code = generator.workspaceToCode (this.workspace)
+          if this.lastCell <> null then
+            if this.lastCell.model <> null then
+              if this.lastCell.model |> JupyterlabCells.Model.Types.isCodeCellModel then
+                //check for existing XML comment as last line of code cell
+                let alreadySerialized = try (this.lastCell.model.value.text.Split('\n') |> Array.last).Contains("xmlns") with _ -> false
+                if alreadySerialized then
+                  let workspace = blockly.getMainWorkspace()
+                  let blocks = workspace.getAllBlocks(false)
+                  if blocks.Count > 0 then 
+                    this.lastCell.model.value.text <-
+                        code //overwrite
+                        // notebooks.activeCell.model.value.text + code //append 
+                        + "\n#" + Toolbox.encodeWorkspace()  //workspace as comment
+                    console.log ("wrote to active cell:\n" + code + "\n")
+                    Logging.LogToServer( Logging.JupyterLogEntry082720.Create "blocks-to-code-autosave"  ( notebooks.activeCell.model.value.text |> Some) )
+                    //clearBlocks() //let these blocks float like any other
+                // flag that we have written code
+                // this.blocksWritten <- true
+          else
+              console.log ("no cell active, flushed instead of autosave:\n" + code + "\n")
     end
            
 /// Return a MainAreaWidget wrapping a BlocklyWidget
@@ -301,10 +355,11 @@ let onKernelChanged =
 /// On every notebook change, register to handle delayed kernel events that are not accessible at this time point
 let onNotebookChanged =
           PhosphorSignaling.Slot<JupyterlabApputils.IWidgetTracker<JupyterlabNotebook.Tokens.NotebookPanel>, JupyterlabNotebook.Tokens.NotebookPanel option >(fun sender args -> 
-            // console.log("notebook changed")
             let blocklyWidget = jsThis<BlocklyWidget> //"this" not defined in promise context
             match sender.currentWidget with
             | Some( notebook ) -> 
+              console.log("notebook changed to " + notebook.context.path )
+              Logging.LogToServer( Logging.JupyterLogEntry082720.Create "notebook-changed"  ( notebook.context.path |> Some) )
               notebook.session.kernelChanged.connect( onKernelChanged, blocklyWidget ) |> ignore
             | None -> ()
             //

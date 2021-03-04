@@ -37,6 +37,7 @@ type BlocklyWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker) as thi
         let generator = Blockly.python //Blockly.javascript
         ///Remove blocks from workspace without affecting variable map like blockly.getMainWorkspace().clear() would
         let clearBlocks() = 
+            //NOTE: should we be using this.workspace here? What about crossing notebooks?
             let workspace = blockly.getMainWorkspace()
             let blocks = workspace.getAllBlocks(false)
             for b in blocks do
@@ -94,16 +95,17 @@ type BlocklyWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker) as thi
             buttonDiv.appendChild( syncCheckbox) |> ignore
             buttonDiv.appendChild( syncCheckboxLabel) |> ignore
 
+            //TODO: this works, but not across multiple open notebooks. Need a better understanding of how blockly implements multiple workspaces
             //checkbox for autosave (force blocks to code if moving away from cell that already has blocks to code in it)
-            let autosaveCheckbox = document.createElement ("input")
-            autosaveCheckbox.setAttribute("type", "checkbox")
-            autosaveCheckbox?``checked`` <- false //turn off autosave by default
-            autosaveCheckbox.id <- "autosaveCheckbox"
-            let autosaveCheckboxLabel = document.createElement ("label")
-            autosaveCheckboxLabel.innerText <- "Autosave"
-            autosaveCheckboxLabel.setAttribute("for", "autosaveCheckbox")
-            buttonDiv.appendChild( autosaveCheckbox) |> ignore
-            buttonDiv.appendChild( autosaveCheckboxLabel) |> ignore
+            // let autosaveCheckbox = document.createElement ("input")
+            // autosaveCheckbox.setAttribute("type", "checkbox")
+            // autosaveCheckbox?``checked`` <- false //turn off autosave by default
+            // autosaveCheckbox.id <- "autosaveCheckbox"
+            // let autosaveCheckboxLabel = document.createElement ("label")
+            // autosaveCheckboxLabel.innerText <- "Autosave"
+            // autosaveCheckboxLabel.setAttribute("for", "autosaveCheckbox")
+            // buttonDiv.appendChild( autosaveCheckbox) |> ignore
+            // buttonDiv.appendChild( autosaveCheckboxLabel) |> ignore
 
             //append all buttons in div
             this.node.appendChild ( buttonDiv ) |> ignore
@@ -277,8 +279,10 @@ type BlocklyWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker) as thi
                 //check for existing XML comment as last line of code cell
                 let alreadySerialized = try (this.lastCell.model.value.text.Split('\n') |> Array.last).Contains("xmlns") with _ -> false
                 if alreadySerialized then
-                  let workspace = blockly.getMainWorkspace()
-                  let blocks = workspace.getAllBlocks(false)
+                  // let workspace = blockly.getMainWorkspace()
+                  // let blocks = workspace.getAllBlocks(false)
+                  let workspace = this.workspace
+                  let blocks = this.workspace.getAllBlocks(false)
                   if blocks.Count > 0 then 
                     this.lastCell.model.value.text <-
                         code //overwrite

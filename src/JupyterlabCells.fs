@@ -293,6 +293,7 @@ module Model =
 
     type [<AllowNullLiteral>] IExports =
         abstract isCodeCellJupyterlabObservablesModel: model: ICellModel -> bool
+        abstract isCodeCellModel: model: ICellModel -> bool
         abstract isMarkdownCellModel: model: ICellModel -> bool
         abstract isRawCellModel: model: ICellModel -> bool
         abstract CellModel: CellModelStatic

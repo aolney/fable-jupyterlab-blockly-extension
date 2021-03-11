@@ -111,6 +111,8 @@ type BlocklyWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker) as thi
             this.node.appendChild ( buttonDiv ) |> ignore
 
         member val lastCell : JupyterlabNotebook.Tokens.Cell = null with get, set
+        member val blocksRendered = false with get,set
+
         member val workspace: Blockly.Workspace = null with get, set
         member val notHooked = true with get, set
         member this.Notebooks = notebooks
@@ -146,9 +148,9 @@ type BlocklyWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker) as thi
               //if sync enabled
               if isChecked(syncCheckbox) && notebooks.activeCell <> null then
                 //if selected cell empty, clear the workspace
-                if notebooks.activeCell.model.value.text.Trim() = "" then
+                if notebooks.activeCell.model.value.text.Trim() = "" && this.blocksRendered then
                   // blockly.getMainWorkspace().clear() //to avoid duplicates
-                  // clearBlocks() //OLD: tight sync
+                  clearBlocks() //OLD: tight sync
                   ()
                 //otherwise try to to create blocks from cell contents (fails gracefully)
                 else
@@ -189,8 +191,8 @@ type BlocklyWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker) as thi
             let logListener = System.Func<Blockly.Events.Abstract__Class,unit>(fun e ->
               // mark when blocks are added so we don't delete those blocks when changing cells UNLESS they've been written to code
               // problem here: this fires when user creates blocks AND when blocks are deserialized
-              // if e?``type`` = "create" then
-              //   this.blocksWritten <- false
+              if e?``type`` = "create" then
+                this.blocksRendered <- false
 
               //for ui, get fine grain type; for var, get varId; everything else is event type and block id
               //a bit ugly b/c fable will not allow type tests against foreign interface: https://github.com/fable-compiler/Fable/issues/1580
@@ -207,7 +209,7 @@ type BlocklyWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker) as thi
             //check if logging should occur
             if Logging.logUrl.IsSome then 
               console.log ("!!! Logging select blockly actions to server !!!")
-              this.workspace.addChangeListener(logListener) |> ignore 
+            this.workspace.addChangeListener(logListener) |> ignore 
 
 
         /// Resize blockly when widget resizes
@@ -267,6 +269,7 @@ type BlocklyWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker) as thi
                   + "\n#" + Toolbox.encodeWorkspace()  //workspace as comment
               console.log ("wrote to active cell:\n" + code + "\n")
               Logging.LogToServer( Logging.JupyterLogEntry082720.Create "blocks-to-code"  ( notebooks.activeCell.model.value.text |> Some) )
+              this.blocksRendered <- true
           else
               console.log ("no cell active, flushed:\n" + code + "\n")
 

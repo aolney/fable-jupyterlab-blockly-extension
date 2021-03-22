@@ -148,7 +148,9 @@ type BlocklyWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker) as thi
               //if sync enabled
               if isChecked(syncCheckbox) && notebooks.activeCell <> null then
                 //if selected cell empty, clear the workspace
-                if notebooks.activeCell.model.value.text.Trim() = "" && this.blocksRendered then
+                // if notebooks.activeCell.model.value.text.Trim() = "" && this.blocksRendered then
+                //if selected cell is not serialized and blocks have been rendered, clear the workspace;
+                if this.blocksRendered && this.ActiveCellSerializedBlocksWorkspaceOption().IsNone then
                   // blockly.getMainWorkspace().clear() //to avoid duplicates
                   clearBlocks() //OLD: tight sync
                   ()
@@ -194,6 +196,11 @@ type BlocklyWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker) as thi
               if e?``type`` = "create" then
                 this.blocksRendered <- false
 
+              // "finished loading" event seems to only fire when deserializing
+              if e?``type`` = "finished_loading" then
+                this.blocksRendered <- true
+              //console.log(e?``type``)
+
               //for ui, get fine grain type; for var, get varId; everything else is event type and block id
               //a bit ugly b/c fable will not allow type tests against foreign interface: https://github.com/fable-compiler/Fable/issues/1580
               // let evt,id =
@@ -209,7 +216,9 @@ type BlocklyWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker) as thi
             //check if logging should occur
             if Logging.logUrl.IsSome then 
               console.log ("!!! Logging select blockly actions to server !!!")
-            this.workspace.addChangeListener(logListener) |> ignore 
+
+            this.workspace.removeChangeListener(logListener) |> ignore  //remove if already exists; for re-entrancy
+            this.workspace.addChangeListener(logListener) |> ignore         
 
 
         /// Resize blockly when widget resizes
@@ -225,6 +234,19 @@ type BlocklyWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker) as thi
           buttonDiv.setAttribute("style", "position: absolute; top: " + adjustedHeight.ToString() + "px; left: " + "0" + "px; width: " + msg.width.ToString() + "px; height: " + "30" + "px" )
           blockly.svgResize( this.workspace :?> Blockly.WorkspaceSvg )
           ()
+
+        member this.ActiveCellSerializedBlocksWorkspaceOption() : string option =
+          if notebooks.activeCell <> null then
+            //Get XML string if it exists
+            let xmlStringOption = 
+                let xmlStringComment = notebooks.activeCell.model.value.text.Split('\n') |> Array.last //xml is always the last line of cell
+                if xmlStringComment.Contains("xmlns") then
+                    xmlStringComment.TrimStart([| '#' |]) |> Some //remove comment marker
+                else
+                    None
+            xmlStringOption
+          else
+            None
 
         /// Render blocks in workspace using xml. Defaults to xml present in active cell
         member this.RenderBlocks()  =
@@ -242,6 +264,8 @@ type BlocklyWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker) as thi
               | Some(xmlString) -> 
                     clearBlocks()
                     Toolbox.decodeWorkspace ( xmlString )
+                    // overwritten by logger callback
+                    // this.blocksRendered <- true
                     Logging.LogToServer( Logging.JupyterLogEntry082720.Create "xml-to-blocks"  ( xmlString |> Some ) )
               | None -> ()
             with

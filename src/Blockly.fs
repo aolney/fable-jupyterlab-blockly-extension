@@ -6118,7 +6118,7 @@ module Blockly =
         abstract addChangeListener: func: Func<Blockly.Events.Abstract__Class,unit> -> unit //Function -> Function
         /// <summary>Stop listening for this workspace's changes.</summary>
         /// <param name="func">Function to stop calling.</param>
-        abstract removeChangeListener: func: Function -> unit
+        abstract removeChangeListener: func: Func<Blockly.Events.Abstract__Class,unit> -> unit //Function -> unit
         /// <summary>Fire a change event.</summary>
         /// <param name="event">Event to fire.</param>
         abstract fireChangeListener: ``event``: Blockly.Events.Abstract -> unit

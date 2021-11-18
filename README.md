@@ -10,8 +10,7 @@ The following query string parameters enable functionality:
 - `log=xxx` specifies a url for a logging endpoint (e.g. https://yourdomain.com/log)
 - `id=xxx` adds an identifier for logging
 
-**NOTE: This plugin requires jupyterlab <= 1.2.6, so if you have a higher version (e.g. 2.X) you will need to execute `conda install jupyterlab=1.2.6` or similar for `pip`**
-
+**NOTE: This plugin requires jupyterlab <= 1.2.6, so if you have a higher version (e.g. 2.X) you will need to execute `conda install jupyterlab=1.2.6` or similar for `pip`. The conda environment specification provided in `fable-extension.yml` will work as-is (e.g. `mamba env create -f fable-extension.yml`) or can be used as a template.**
 
 ## Installation
 

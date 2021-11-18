@@ -54,20 +54,21 @@ let deleteDefinitions : unit = jsNative
 let deleteFunctions : unit = jsNative
 
 //Prevent Blockly from prepending variable definitions for us 
-// 'id' is too heavy handed - we want imports but not definitions
-// blockly?Python?finish <- id
-// This allows imports but not definitions //TODO: code gen for functions seems to be broken, maybe here?
+// This allows imports and function definitions but not variable definitions; functions are identified using the language keyword
 blockly?Python?finish <- System.Func<string,string>(fun code ->
   let imports = ResizeArray<string>()
+  let functions = ResizeArray<string>()
   for name in JS.Constructors.Object.keys( blockly?Python?definitions_ ) do
     let ( definitions : obj ) =  blockly?Python?definitions_
     let (def : string) = definitions.[ name ] |> string
     if def.Contains("import") then
       imports.Add(def)
+    if def.StartsWith("def ") then
+      functions.Add(def)
   deleteDefinitions
   deleteFunctions
   blockly?Python?variableDB_?reset()
-  (imports |> String.concat "\n")  + "\n\n" + code)
+  (imports |> String.concat "\n")  + (functions |> String.concat "\n")  + "\n\n" + code)
 
 /// Encode the current Blockly workspace as an XML string
 let encodeWorkspace() =

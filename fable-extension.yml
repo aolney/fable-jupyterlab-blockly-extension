@@ -1,0 +1,14 @@
+name: fable-extension
+channels:
+  - conda-forge
+  - plotly
+  - defaults
+dependencies:
+  - python=3.7
+  - xeus-python=0.7
+  - jupyter_client=6.1
+  - jupyter_core=4.6
+  - jupyterlab=1.2
+  - pip
+  - pandas
+  - plotly

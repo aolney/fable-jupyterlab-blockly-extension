@@ -325,6 +325,15 @@ makeFunctionBlock
   "https://docs.python.org/3/tutorial/datastructures.html#dictionaries"
   "dict"
 
+// list
+makeFunctionBlock 
+  "listBlock"
+  "list"
+  "None"
+  "Create a list from an iterable, e.g. list(zip(...))"
+  "https://docs.python.org/3/library/stdtypes.html#typesseq-list"
+  "list"
+
 // zip
 makeFunctionBlock 
   "zipBlock"
@@ -1294,6 +1303,7 @@ let toolbox =
       <block type="sortedBlock"></block>
       <block type="zipBlock"></block>
       <block type="dictBlock"></block>
+      <block type="listBlock"></block>
       <block type="tupleBlock"></block>
       <block type="tupleConstructorBlock"></block>
       <block type="reversedBlock"></block>

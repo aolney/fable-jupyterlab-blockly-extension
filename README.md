@@ -3,6 +3,7 @@
 **NOTE: This is the original JupyterLab extension implementing a Blockly palette for the Python language. It has been forked [here](https://github.com/aolney/jupyterlab-blockly-python-extension) in order to support multiple languages in parallel. The present repo is for legacy use and bug fixes only.**
 
 A [JupyterLab](https://jupyterlab.readthedocs.io/en/stable/) extension implementing a Blockly palette for the Python language using [Fable](https://fable.io/) tooling.
+For data science training materials using this extension, see [here](https://github.com/memphis-iis/datawhys-content-notebooks).
 
 The following query string parameters enable functionality:
 
